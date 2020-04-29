@@ -2,9 +2,7 @@
 
 (require 's)
 
-(let ((keycodes (make-hash-table :test 'equal))
-      (modtap-keys (make-hash-table :test 'equal))
-      (modifier-keys (make-hash-table :test 'equal)))
+(let ((keycodes (make-hash-table :test 'equal)))
   (defun set-keycodes ()
     (cl-dolist (entry
          '(;; Letters and Numbers
@@ -18,12 +16,12 @@
            (F21) (F22) (F23) (F24)
            
            ;; Punctuation
-           (ENT "enter")  (ESC "escape")   (bspace) (TAB "tab")
-           (space "space")     (- "minus")    (= "equal")
+           (ENT "enter") (ESC "escape") (bspace) (TAB "tab")
+           (space "space") (- "minus") (= "equal")
            (lbracket "lbracket") ("[" "lbracket")
            (rbracket "rbracket") ("]" "rbracket") (\ "bslash")
-           (nonus-hash "nonus_hash") (colon "scolon")   (quote "quote") (grave "grave")
-           (comma "comma")      (dot "dot")      (/ "slash")
+           (nonus-hash "nonus_hash") (colon "scolon") (quote "quote") (grave "grave")
+           (comma "comma") (dot "dot") (/ "slash")
            
            ;; Shifted Keys
            (~ "tilde") (! "exclaim") (@ "at")
@@ -40,16 +38,15 @@
            ;; Modifiers
            (CC "lctrl") (MM "lalt")
            (SS "lshift") (GG "lgui")
+           (C-M "lca") (C-M-S "meh") (C-M-G "hypr")
 
            ;; Commands
-           (<insert> "insert") ("<home>" "home") ("<prior>" "pgup")
-           ("<delete>" "delete") ("<end>" "end")   ("<next>" "pgdown")
-           ("<right>" "right")   ("<left>" "left") ("<down>" "down")
-           ("<up>" "up")
+           (insert) (home) (prior "pgup") (delete) (end) (next "pgdown")
+           (right) (left) (down) (up)
 
            ;; Media Keys
-           ("vol_up" "audio_vol_up") ("vol_down" "audio_vol_down")
-           ("mute" "audio_mute") ("stop" "media_stop")
+           (vol_up audio_vol_up) (vol_down "audio_vol_down")
+           (mute "audio_mute") (stop "media_stop")
 
            ;; Mouse Keys
            (ms-up) (ms-down) (ms-left) (ms-right)
@@ -67,49 +64,41 @@
                      (number-to-string (car entry))
                    (symbol-name (car entry))))
                keycodes)))
- 
-  (defun set-modtap-keys ()
-    (cl-dolist (entry '((C "MOD_LCTL")
-                        (M "MOD_LALT")
-                        (S "MOD_LSFT")
-                        (G "MOD_LGUI"))
-                      modtap-keys)
-      (puthash (car entry) (cadr entry) modtap-keys))
-    (setf set t))
 
-  (defun set-modifier-keys ()
-    (cl-dolist (entry '((C     "LCTL")
-                        (M     "LALT")
-                        (S     "LSFT")
-                        (G     "LWIN")
-                        (C-M   "LCA")
-                        (C-M-S "MEH")
-                        (C-M-G "HYPR"))
-                      modifier-keys)
-      (puthash (car entry) (cadr entry) modifier-keys))
-    (setf set t))
-  
-  (defun keycode (key)
+  (defun keycode-raw (key)
     (if (not (hash-table-empty-p keycodes))
         (awhen (gethash key keycodes)
-          (if (or (not key) (equal key '---))
-              ;; Handle the transparent key differently
-              it
-            (concat "KC_" (upcase it))))
+          it)
       (set-keycodes)
-      (keycode key)))
+      (keycode-raw key)))
 
-  (defun modtap-key (key)
-    (if (not (hash-table-empty-p modtap-keys))
-        (gethash key modtap-keys)
-      (set-modtap-keys)
-      (modtap-key key)))
+  (defun keycode (key)
+    (awhen (keycode-raw key)
+      (if (or (not key) (equal key '---))
+          ;; Handle the transparent key differently
+          it
+        (concat "KC_" (upcase it)))))
+
+  (defun keycode-x (key)
+    "Keycodes for send_string macros."
+    (awhen (keycode-raw key)
+      (concat "X_" (upcase it))))
 
   (defun modifier-key (key)
-    (if (not (hash-table-empty-p modifier-keys))
-        (gethash key modifier-keys)
-      (set-modifier-keys)
-      (modifier-key key))))
+    "Ctrl, Alt and the like."
+    (let* ((str (symbol-name key))
+           (raw (if (= (length str) 1)
+                    (keycode-raw
+                     (intern (concat str str)))
+                  (keycode-raw key))))
+      raw))
+  
+  (defun modifier-key-mod (key)
+    (format "MOD_%s" (modifier-key key)))
+
+  (defun modifier-key-ss (key)
+    (format "SS_%s" (modifier-key key))))
+
 
 (defun layer-toggle (layer key)
   "LAYER when held, KEY when tapped."
@@ -119,7 +108,7 @@
 (defun modtap (mod key)
   "MOD when held, KEY when tapped."
   (s-format "MT($0, $1)" 'elt
-            (list (modtap-key mod)
+            (list (modifier-key-mod mod)
                   (keycode key))))
 
 (defun modifier (mod key)
@@ -146,7 +135,7 @@
 
 (defun one-shot-mod (mod)
   "Hold down MOD for one key press only."
-  (format "OSM(%s)" (modtap-key mod)))
+  (format "OSM(%s)" (modifier-key-mod mod)))
 
 (defun one-shot-layer (layer)
   "Switch to LAYER for one key press only."
