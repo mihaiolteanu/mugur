@@ -84,15 +84,33 @@
     (awhen (keycode-raw key)
       (concat "X_" (upcase it))))
 
+  (defun modifier-key? (key)
+    (member key '(C M S G C-M C-M-S C-M-G)))
+
+  (defun modifier-key-or-combo (combo)
+    (cond ((modifier-key? combo) (modifier-key combo))
+          ((s-contains? "-" (if (symbolp combo)
+                                (symbol-name combo)
+                              ""))
+           (let* ((s (s-split "-" (symbol-name combo)))
+                  (prefix (s-join "-" (butlast s))))
+             (if (modifier-key? (intern prefix))
+                 (modifier (intern prefix)
+                           (intern (car (last s))))
+               nil)))
+          nil))
+  (modifier-key-or-combo 'C-M-g)
+  
   (defun modifier-key (key)
     "Ctrl, Alt and the like."
-    (let* ((str (symbol-name key))
-           (raw (if (= (length str) 1)
-                    (keycode-raw
-                     (intern (concat str str)))
-                  (keycode-raw key))))
-      raw))
-  
+    (when (modifier-key? key)
+      (let* ((str (symbol-name key))
+             (raw (if (= (length str) 1)
+                      (keycode-raw
+                       (intern (concat str str)))
+                    (keycode-raw key))))
+        (upcase raw))))
+
   (defun modifier-key-mod (key)
     (format "MOD_%s" (modifier-key key)))
 
@@ -141,34 +159,44 @@
   "Switch to LAYER for one key press only."
   (format "OSL(%s)" (upcase (symbol-name layer))))
 
+
+(cl-defstruct keycode
+  key macro)
+
+(let (keycodes)
+  (defun define-macro (key macro)
+    (cl-pushnew
+     (make-keycode :key key
+                   :macro macro)
+     keycodes
+     :test #'equal)))
+
+;;(define-macro 'em_split (C-x 3))
+
+(defun transform-key (key)
+  (pcase key
+    (`() (keycode '()))
+    ((and `(,mod-or-combo)
+          (guard (modifier-key-or-combo mod-or-combo)))
+     (modifier-key-or-combo mod-or-combo))
+    (`(,s) (keycode s))
+    (`(mod-tap ,mod ,key) (modtap mod key))
+    (`(osm ,mod) (one-shot-mod mod))
+    (`(osl ,layer) (one-shot-layer layer))
+    ((and `(,action ,layer)
+          (guard (member action '(df mo osl tg to tt))))
+     (layer-switch action layer))
+    ((and `(,action ,layer ,mod-or-key)
+          (guard (member action '(lm lt))))
+     (layer-switch-lm-or-lt action layer mod-or-key))))
+  
+(defun transform-keys (keys)
+  (mapcar #'transform-key keys))
+
 (cl-defstruct layer
   name pos keys)
 
 (let (layers)
-  (defun transform-keys (keys)
-    (mapcar (lambda (key)
-         (pcase key
-           (`() (keycode '()))
-           ((and `(,mod)
-                 (guard (and (symbolp mod)
-                             (let ((items (s-split "-" (symbol-name mod))))
-                               ;; Is the first char a modifier key?
-                               (modifier-key (intern (car items)))))))
-            (let ((items (s-split "-" (symbol-name mod))))
-              (modifier (intern (car items))
-                        (intern (cadr items)))))
-           (`(,s) (keycode s))
-           (`(mod-tap ,mod ,key) (modtap mod key))
-           (`(osm ,mod) (one-shot-mod mod))
-           (`(osl ,layer) (one-shot-layer layer))
-           ((and `(,action ,layer)
-                 (guard (member action '(df mo osl tg to tt))))
-            (layer-switch action layer))
-           ((and `(,action ,layer ,mod-or-key)
-                 (guard (member action '(lm lt))))
-            (layer-switch-lm-or-lt action layer mod-or-key))))
-       keys))
-  
   (defun define-layer (name pos keys)
     (cl-pushnew
      (make-layer :name (upcase name)
@@ -309,19 +337,6 @@
     ( )
     ( ) ( ) ( )
     ))
-
-(cl-defstruct keycode
-  key macro)
-
-(let (keycodes)
-  (defun define-macro (key macro)
-    (cl-pushnew
-     (make-keycode :key key
-                   :macro macro)
-     keycodes
-     :test #'equal)))
-
-(define-macro 'em_split (C-x 3))
 
 (defconst keymap-filename "./elisp-keymap.c")
 
