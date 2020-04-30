@@ -214,12 +214,13 @@
   (defun ss-macro (entry)
     (cl-pushnew
      (make-ss-macro-entry
-      :name (format "SS_MACRO_%s"
-                    (setf count (+ count 1)))
+      :name (format "SS_MACRO_%s" count)
       :expansion (ss-macro-define entry))
      ss-macro-entries
      :test #'string-equal
-     :key  #'ss-macro-entry-expansion))
+     :key  #'ss-macro-entry-expansion)
+    (setf count (+ count 1))
+    (car ss-macro-entries))
 
   (defun ss-macro-all-entries ()
     ss-macro-entries))
@@ -252,7 +253,9 @@
     ((and `(,action ,layer ,mod-or-key)
           (guard (member action '(lm lt))))
      (layer-switch-lm-or-lt action layer mod-or-key))
-    (t (ss-macro key))))
+    (_ (let ((macro-entry (ss-macro key)))
+         (when (ss-macro-entry-p macro-entry)
+           (ss-macro-entry-name macro-entry))))))
 
 (ert-deftest test-transform-key ()
   (cl-dolist (test
@@ -285,6 +288,26 @@
   (defun all-layers ()
     (cl-sort (copy-sequence layers)
              #'< :key #'layer-pos)))
+
+(defun generate-custom-keycodes ()
+  (insert "enum custom_keycodes {\n \tEPRM = SAFE_RANGE,\n")
+  (cl-dolist (keycode (ss-macro-all-entries))
+    (insert (format "\t%s,\n"
+                    (upcase (ss-macro-entry-name keycode)))))
+  (insert "};\n\n"))
+
+(defun generate-process-record-user ()
+  (insert "bool process_record_user(uint16_t keycode, keyrecord_t *record) {\n")
+  (insert "\tif (record->event.pressed) {\n")
+  (insert "\t\tswitch (keycode) {\n")
+  (insert "\t\tcase EPRM:\n")
+  (insert "\t\t\teeconfig_init();\n")
+  (insert "\t\t\treturn false;\n")
+  (cl-dolist (keycode (ss-macro-all-entries))
+    (insert (format "\t\tcase %s:\n" (ss-macro-entry-name keycode)))
+    (insert (format "\t\t\tSEND_STRING(%s);\n" (ss-macro-entry-expansion keycode)))
+    (insert "\t\t\treturn false;\n"))
+  (insert "\t\t}\n\t}\n\treturn true;\n}\n\n"))
 
 (defun generate-layer-codes-enum ()
   (let ((layers (mapcar #'layer-name (all-layers))))
@@ -327,7 +350,7 @@
                                       (cons (layer-name layer)
                                             (layer-keys layer))))
                           layers))))
-  (insert "\n};"))
+  (insert "\n};\n\n\n"))
 
 (define-layer "base" 0
  '((---)        (---) (---) (---) (---)     (---) (---)
@@ -402,7 +425,7 @@
                             ( )
                     ( ) ( ) ( )
  ;; ---------------------------
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
+    ( ) ( ) ( ) ( ) ( ) ( ) (C-x a b c)
     ( ) ( ) ( ) ( ) ( ) ( ) ( )
         ( ) ( ) ( ) ( ) ( ) ( )
     ( ) ( ) ( ) ( ) ( ) ( ) ( )
@@ -416,7 +439,9 @@
 
 (with-temp-file keymap-filename
   (generate-layer-codes-enum)
-  (generate-keymaps-matrix))
+  (generate-custom-keycodes)
+  (generate-keymaps-matrix)
+  (generate-process-record-user))
 
 
 ;; (define-layer "template"
