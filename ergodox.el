@@ -25,7 +25,8 @@
      (~ "tilde") (! "exclaim") (@ "at")
      (hash) ($ "dollar") (% "percent")
      (^ "circumflex") (& "ampersand") (* "asterix")
-     (left-paren "left_paren") (right-paren "right_paren")
+     (lparen "left_paren") (rparen "right_paren")
+     ("(" "left_paren") (")" "right_paren")
      (_ "underscore") (+ "plus")
      ({ "left_curly_brace") (} "right_curly_brace")
      (| "pipe") (: "colon") (double-quote "double_quote")
@@ -95,7 +96,7 @@
           it
         (concat "KC_" it))))
   
-  (defun keycode-x (key)
+  (defun keycode-ss (key)
     "Keycodes for send_string macros."
     (awhen (keycode-raw key)
       (concat "X_" it)))
@@ -108,11 +109,24 @@
            (let* ((s (s-split "-" (symbol-name combo)))
                   (prefix (s-join "-" (butlast s))))
              (if (modifier-key? (intern prefix))
-                 (modifier (intern prefix)
-                           (intern (car (last s))))
+                 (modifier+key (intern prefix)
+                               (intern (car (last s))))
                nil)))
-          nil))
-  
+          (t nil)))
+
+  (defun modifier-key-or-combo-ss (combo)
+    (cond ((modifier-key? combo) (modifier-key-ss combo))
+          ((s-contains? "-" (if (symbolp combo)
+                                (symbol-name combo)
+                              ""))
+           (let* ((s (s-split "-" (symbol-name combo)))
+                  (prefix (s-join "-" (butlast s))))
+             (if (modifier-key? (intern prefix))
+                 (modifier+key-ss (intern prefix)
+                               (intern (car (last s))))
+               nil)))
+          (t nil)))
+
   (defun modifier-key (key)
     "Ctrl, Alt and the like."
     (when (modifier-key? key)
@@ -136,11 +150,17 @@
             (list (modifier-key-mod mod)
                   (keycode key))))
 
-(defun modifier (mod key)
+(defun modifier+key (mod key)
   "Hold MOD and press KEY."
   (s-format "$0($1)" 'elt
             (list (modifier-key mod)
                   (keycode key))))
+
+(defun modifier+key-ss (mod key)
+  "Hold MOD and press KEY for send_string macros."
+  (s-format "$0($1)" 'elt
+            (list (modifier-key-ss mod)
+                  (keycode-ss key))))
 
 (defun layer-switch (action layer)
   "Switch to the given LAYER."
@@ -167,16 +187,52 @@
   (format "OSL(%s)" (upcase (symbol-name layer))))
 
 
-(cl-defstruct keycode
-  key macro)
+(defun tap-ss (key)
+  (format "SS_TAP(%s)" (keycode-ss key )))
 
-(let (keycodes)
-  (defun define-macro (key macro)
+(cl-defstruct ss-macro-entry
+  name expansion)
+
+(let ((count 1)
+      (ss-macro-entries nil))
+  (defun ss-macro-transform-keys (keys)
+    (mapcar (lambda (key)
+         (let ((combo (modifier-key-or-combo-ss key)))
+           (if combo
+               combo
+             (if (stringp key)
+                 (format "\"%s\"" key)
+               (tap-ss key)))))
+       keys))
+
+  (defun ss-macro-define (entry)
+    (cl-reduce
+     (lambda (item1 item2)
+       (concat item1 " " item2))
+     (ss-macro-transform-keys entry)))
+  
+  (defun ss-macro (entry)
     (cl-pushnew
-     (make-keycode :key key
-                   :macro macro)
-     keycodes
-     :test #'equal)))
+     (make-ss-macro-entry
+      :name (format "SS_MACRO_%s"
+                    (setf count (+ count 1)))
+      :expansion (ss-macro-define entry))
+     ss-macro-entries
+     :test #'string-equal
+     :key  #'ss-macro-entry-expansion))
+
+  (defun ss-macro-all-entries ()
+    ss-macro-entries))
+
+(ert-deftest test-ss-macro ()
+  (cl-dolist (test
+       '((("you do" C-x) "\"you do\" SS_LCTL(X_X)")
+         ((M-x a)        "SS_LALT(X_X) SS_TAP(X_A)")
+         ((M-x a b)      "SS_LALT(X_X) SS_TAP(X_A) SS_TAP(X_B)")
+         ((M-x "this" a) "SS_LALT(X_X) \"this\" SS_TAP(X_A)")
+         ))
+    (should (equal (ss-macro-define (car test))
+                   (cadr test)))))
 
 (defun transform-key (key)
   (pcase key
@@ -195,14 +251,17 @@
      (layer-switch action layer))
     ((and `(,action ,layer ,mod-or-key)
           (guard (member action '(lm lt))))
-     (layer-switch-lm-or-lt action layer mod-or-key))))
+     (layer-switch-lm-or-lt action layer mod-or-key))
+    (t (ss-macro key))))
 
 (ert-deftest test-transform-key ()
   (cl-dolist (test
-       '((()    "___")
-         ((C)   "LCTL")
-         ((M-a) "LALT(KC_A)")
-         ((M a) "MT(MOD_LALT, KC_A)")))
+       '((()      "___")
+         ((c)     "KC_C")
+         ((C)     "LCTL")
+         ((M-a)   "LALT(KC_A)")
+         ((C-M-a) "LCA(KC_A)")         
+         ((M a)   "MT(MOD_LALT, KC_A)")))
     (should (equal (transform-key (car test))
                    (cadr test)))))
 
