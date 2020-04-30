@@ -2,90 +2,103 @@
 
 (require 's)
 
+(defconst supported-keycodes
+  '(("Letters and Numbers"
+     (a) (b) (c) (d) (e) (f) (g) (h) (i) (j) (k) (l) (m) (n)
+     (o) (p) (q) (r) (s) (t) (u) (v) (w) (x) (y) (z)           
+     (1) (2) (3) (4) (5) (6) (7) (8) (9) (0))
+    
+    ("Function Keys"
+     (F1)  (F2)  (F3)  (F4)  (F5)  (F6)  (F7)  (F8)  (F9)  (F10)
+     (F11) (F12) (F13) (F14) (F15) (F16) (F17) (F18) (F19) (F20)
+     (F21) (F22) (F23) (F24))
+
+    ("Punctuation"
+     (ENT "enter") (ESC "escape") (bspace) (TAB "tab")
+     (space "space") (- "minus") (= "equal")
+     (lbracket "lbracket") ("[" "lbracket")
+     (rbracket "rbracket") ("]" "rbracket") (\ "bslash")
+     (nonus-hash "nonus_hash") (colon "scolon") (quote "quote") (grave "grave")
+     (comma "comma") (dot "dot") (/ "slash"))
+    
+    ("Shifted Keys"
+     (~ "tilde") (! "exclaim") (@ "at")
+     (hash) ($ "dollar") (% "percent")
+     (^ "circumflex") (& "ampersand") (* "asterix")
+     (left-paren "left_paren") (right-paren "right_paren")
+     (_ "underscore") (+ "plus")
+     ({ "left_curly_brace") (} "right_curly_brace")
+     (| "pipe") (: "colon") (double-quote "double_quote")
+     (< "left_angle_bracket") (> "right_angle_bracket")
+     (? "question"))
+    
+    ("Modifiers"
+     (C "lctl") (M "lalt")
+     (S "lshift") (G "lgui")
+     (C-M "lca") (C-M-S "meh") (C-M-G "hypr"))
+
+    ("Commands"
+     (insert) (home) (prior "pgup") (delete) (end) (next "pgdown")
+     (right) (left) (down) (up))
+
+    ("Media Keys"
+     (vol_up "audio_vol_up") (vol_down "audio_vol_down")
+     (mute "audio_mute") (stop "media_stop"))
+
+    ("Mouse Keys"
+     (ms-up) (ms-down) (ms-left) (ms-right)
+     (ms-btn1) (ms-btn2) (ms-btn3) (ms-btn4) (ms-btn5)
+     (ms-wh-up) (ms-wh-down) (ms-wh-left) (ms-wh-right)
+     (ms-accel1) (ms-accel2) (ms-accel3))
+    
+    ("Special Keys"
+     (--- "_x_") (() "___"))))
+
 (let ((keycodes (make-hash-table :test 'equal)))
   (defun set-keycodes ()
-    (cl-dolist (entry
-         '(;; Letters and Numbers
-           (a) (b) (c) (d) (e) (f) (g) (h) (i) (j) (k) (l) (m) (n)
-           (o) (p) (q) (r) (s) (t) (u) (v) (w) (x) (y) (z)           
-           (1) (2) (3) (4) (5) (6) (7) (8) (9) (0)
-
-           ;; F Keys
-           (F1)  (F2)  (F3)  (F4)  (F5)  (F6)  (F7)  (F8)  (F9)  (F10)
-           (F11) (F12) (F13) (F14) (F15) (F16) (F17) (F18) (F19) (F20)
-           (F21) (F22) (F23) (F24)
-           
-           ;; Punctuation
-           (ENT "enter") (ESC "escape") (bspace) (TAB "tab")
-           (space "space") (- "minus") (= "equal")
-           (lbracket "lbracket") ("[" "lbracket")
-           (rbracket "rbracket") ("]" "rbracket") (\ "bslash")
-           (nonus-hash "nonus_hash") (colon "scolon") (quote "quote") (grave "grave")
-           (comma "comma") (dot "dot") (/ "slash")
-           
-           ;; Shifted Keys
-           (~ "tilde") (! "exclaim") (@ "at")
-           (hash)  ($ "dollar")  (% "percent")
-           (^ "circumflex") (& "ampersand") (* "asterix")
-           (left-paren "left_paren") (right-paren "right_paren")
-           (_ "underscore") (+ "plus")
-           (left-curly "left_curly_brace") (right-curly "right_curly_brace")
-           ({ "left_curly_brace") (} "right_curly_brace")
-           (| "pipe") (: "colon") (double-quote "double_quote")
-           (< "left_angle_bracket") (> "right_angle_bracket")
-           (? "question")
-           
-           ;; Modifiers
-           (CC "lctrl") (MM "lalt")
-           (SS "lshift") (GG "lgui")
-           (C-M "lca") (C-M-S "meh") (C-M-G "hypr")
-
-           ;; Commands
-           (insert) (home) (prior "pgup") (delete) (end) (next "pgdown")
-           (right) (left) (down) (up)
-
-           ;; Media Keys
-           (vol_up audio_vol_up) (vol_down "audio_vol_down")
-           (mute "audio_mute") (stop "media_stop")
-
-           ;; Mouse Keys
-           (ms-up) (ms-down) (ms-left) (ms-right)
-           (ms-btn1) (ms-btn2) (ms-btn3) (ms-btn4) (ms-btn5)
-           (ms-wh-up) (ms-wh-down) (ms-wh-left) (ms-wh-right)
-           (ms-accel1) (ms-accel2) (ms-accel3)
-           
-           ;; Special Keys
-           (--- "_x_") (() "___"))
-               keycodes)
-      (puthash (car entry)
-               (if (= (length entry) 2)
-                   (cadr entry)
-                 (if (numberp (car entry))
-                     (number-to-string (car entry))
-                   (symbol-name (car entry))))
-               keycodes)))
+    "Add all keycodes in hashtable."
+    (cl-dolist (categories supported-keycodes)
+      (cl-dolist (entry (cdr categories))
+          (puthash (car entry)
+                   (if (= (length entry) 2)
+                       (upcase (cadr entry))
+                     (if (numberp (car entry))
+                         (number-to-string (car entry))
+                       (upcase (symbol-name (car entry)))))
+                   keycodes))))
 
   (defun keycode-raw (key)
     (if (not (hash-table-empty-p keycodes))
         (awhen (gethash key keycodes)
           it)
+      ;; First call, update the hash table.
       (set-keycodes)
       (keycode-raw key)))
 
+  (defun key-in-category? (category key)
+    (cl-find key
+     (cdr (cl-find category
+                   supported-keycodes
+                   :test #'string-equal :key #'car))
+     :key #'car))
+
+  (defun modifier-key? (key)
+    (key-in-category? "Modifiers" key))
+  
+  (defun special-key? (key)
+    (key-in-category? "Special Keys" key))
+  
   (defun keycode (key)
     (awhen (keycode-raw key)
-      (if (or (not key) (equal key '---))
-          ;; Handle the transparent key differently
+      ;; Return the special keys as is.
+      (if (special-key? key)          
           it
-        (concat "KC_" (upcase it)))))
-
+        (concat "KC_" it))))
+  
   (defun keycode-x (key)
     "Keycodes for send_string macros."
     (awhen (keycode-raw key)
-      (concat "X_" (upcase it))))
-
-  (defun modifier-key? (key)
-    (member key '(C M S G C-M C-M-S C-M-G)))
+      (concat "X_" it)))
 
   (defun modifier-key-or-combo (combo)
     (cond ((modifier-key? combo) (modifier-key combo))
@@ -99,17 +112,11 @@
                            (intern (car (last s))))
                nil)))
           nil))
-  (modifier-key-or-combo 'C-M-g)
   
   (defun modifier-key (key)
     "Ctrl, Alt and the like."
     (when (modifier-key? key)
-      (let* ((str (symbol-name key))
-             (raw (if (= (length str) 1)
-                      (keycode-raw
-                       (intern (concat str str)))
-                    (keycode-raw key))))
-        (upcase raw))))
+      (keycode-raw key)))
 
   (defun modifier-key-mod (key)
     (format "MOD_%s" (modifier-key key)))
@@ -171,8 +178,6 @@
      keycodes
      :test #'equal)))
 
-;;(define-macro 'em_split (C-x 3))
-
 (defun transform-key (key)
   (pcase key
     (`() (keycode '()))
@@ -180,7 +185,9 @@
           (guard (modifier-key-or-combo mod-or-combo)))
      (modifier-key-or-combo mod-or-combo))
     (`(,s) (keycode s))
-    (`(mod-tap ,mod ,key) (modtap mod key))
+    ((and `(,modifier ,key)
+          (guard (modifier-key? modifier)))
+     (modtap modifier key))
     (`(osm ,mod) (one-shot-mod mod))
     (`(osl ,layer) (one-shot-layer layer))
     ((and `(,action ,layer)
@@ -189,7 +196,16 @@
     ((and `(,action ,layer ,mod-or-key)
           (guard (member action '(lm lt))))
      (layer-switch-lm-or-lt action layer mod-or-key))))
-  
+
+(ert-deftest test-transform-key ()
+  (cl-dolist (test
+       '((()    "___")
+         ((C)   "LCTL")
+         ((M-a) "LALT(KC_A)")
+         ((M a) "MT(MOD_LALT, KC_A)")))
+    (should (equal (transform-key (car test))
+                   (cadr test)))))
+
 (defun transform-keys (keys)
   (mapcar #'transform-key keys))
 
@@ -255,26 +271,25 @@
   (insert "\n};"))
 
 (define-layer "base" 0
- '((---)        (---)    (---)         (---)         (---)     (---) (---)
-   (---)        (---)     (w)           (e)           (r)       (t)  (---)
-   (---)         (a)  (mod-tap G t) (mod-tap M d) (mod-tap C f) (g)
-   (osm S)       (z)      (x)           (c)           (v)       (b)  (---)
-   (tg emacs_l) (---)    (---)         (---)         (---)
+ '((---)        (---) (---) (---) (---)     (---) (---)
+   (---)        (---)  (w)   (e)   (r)  (t) (---)
+   (---)         (a)  (G t) (M d) (C f) (g)
+   (osm S)       (z)   (x)   (c)   (v)  (b) (---)
+   (tg emacs_l) (---) (---) (---) (---)
    
-                                                               (---) (---)
-                                                                     (M-x)
-                                   (lt emacs_r DEL) (lt xwindow SPC) (TAB)
+                                            (---) (---)
+                                                  (M-x)
+                (lt emacs_r DEL) (lt xwindow SPC) (TAB)
    ;; ------------------------------------------------------------------   
-   (---) (---)   (---)         (---)          (---)      (---)  (---)
-   (---)  (y) (lt num_up u) (lt numeric i)     (o)       (---)  (---)
-          (h) (mod-tap C j) (lt symbols k) (mod-tap M l)  (p)  (tg mdia)
-   (---)  (n)     (m)         (comma)         (dot)       (q)  (osm S)
-                 (---)         (---)          (---)      (---)  (---)
+   (---) (---)   (---)         (---)       (---) (---) (---)
+   (---)  (y) (lt num_up u) (lt numeric i)  (o)  (---) (---)
+          (h)    (C j)      (lt symbols k) (M l)  (p)  (---)
+   (---)  (n)     (m)         (comma)      (dot)  (q)  (osm S)
+                 (---)         (---)       (---) (---) (---)
 
    (---) (---)
    (C-z)
-   (lt mdia ESC) (lt emacs_l ENT) (---)
-   ))
+   (lt mdia ESC) (lt emacs_l ENT) (---)))
 
 (define-layer "xwindow" 1
   '(( ) ( ) ( ) ( ) ( ) ( ) ( )
