@@ -264,7 +264,8 @@
          ((C)     "LCTL")
          ((M-a)   "LALT(KC_A)")
          ((C-M-a) "LCA(KC_A)")         
-         ((M a)   "MT(MOD_LALT, KC_A)")))
+         ((M a)   "MT(MOD_LALT, KC_A)"
+         (("what you do") "\"what you do\""))))
     (should (equal (transform-key (car test))
                    (cadr test)))))
 
@@ -289,6 +290,48 @@
     (cl-sort (copy-sequence layers)
              #'< :key #'layer-pos)))
 
+(cl-defstruct combo
+  name keys expansion)
+
+(let ((count 1)
+      (combos nil))
+  (defun combo-define (combo)
+    (let* ((keycodes (mapcar #'keycode (butlast combo)))
+           (last (last combo))
+           (ss (ss-macro-transform-keys
+                (if (listp (car last))
+                    (car last)
+                  last))))
+      (list keycodes ss)))
+
+  (defun combo (combo)
+    (let ((c (combo-define combo))
+          (cur-count (length combos)))
+      (cl-pushnew
+       (make-combo :name (format "COMBO_%s" count)
+                   :keys (cl-reduce (lambda (item1 item2)
+                                      (concat item1 ", " item2))
+                                    (car (butlast c)))
+                   :expansion (car (last c)))
+       combos
+       :test #'equal
+       :key  #'combo-expansion)
+      (when (> (length combos) cur-count)
+        (setf count (+ 1 count)))))
+
+  (defun combos-all ()
+    (reverse combos)))
+
+(ert-deftest test-combo-define ()
+  (cl-dolist (test
+       '(((a x "whatever") (("KC_A" "KC_X") ("\"whatever\"")))
+         ((a x ("whatever")) (("KC_A" "KC_X") ("\"whatever\"")))
+         ((a x (x "whatever")) (("KC_A" "KC_X") ("SS_TAP(X_X)" "\"whatever\"")))
+         ((a x C-x) (("KC_A" "KC_X") ("SS_LCTL(\"x\")")))
+         ((a x (C-x "whatever")) (("KC_A" "KC_X") ("SS_LCTL(\"x\")" "\"whatever\"")))))
+    (should (equal (combo-define (car test))
+                   (cadr test)))))
+
 (defun generate-custom-keycodes ()
   (insert "enum custom_keycodes {\n \tEPRM = SAFE_RANGE,\n")
   (cl-dolist (keycode (ss-macro-all-entries))
@@ -308,6 +351,37 @@
     (insert (format "\t\t\tSEND_STRING(%s);\n" (ss-macro-entry-expansion keycode)))
     (insert "\t\t\treturn false;\n"))
   (insert "\t\t}\n\t}\n\treturn true;\n}\n\n"))
+
+(defun generate-combo-events-and-array ()
+  (when (combos-all)
+    (insert "enum combo_events {\n")
+    (cl-dolist (combo (combos-all))
+      (insert (format "\t%s,\n" (upcase (combo-name combo)))))
+    (insert "};\n\n")
+    
+    (cl-dolist (combo (combos-all))
+      (insert (format "const uint16_t PROGMEM %s_combo[] = {%s, COMBO_END};\n"
+                      (combo-name combo) (combo-keys combo))))
+    (insert "\n")
+    
+    (insert "combo_t key_combos[COMBO_COUNT] = {\n")
+    (cl-dolist (combo (combos-all))
+      (insert (format "\t[%s] = COMBO_ACTION(%s_combo),\n"
+                      (upcase (combo-name combo))
+                      (combo-name combo))))
+    (insert "};\n\n")
+
+    (insert "void process_combo_event(uint8_t combo_index, bool pressed) {\n")
+    (insert "\tswitch(combo_index) {\n")
+    (cl-dolist (combo (combos-all))
+      (insert (format "\tcase %s:\n" (upcase (combo-name combo))))
+      (insert "\t\tif (pressed) {\n")
+      (insert (format "\t\t\tSEND_STRING%s;\n" (combo-expansion combo)))
+      (insert "\t\t}\n")
+      (insert "\t\tbreak;\n")
+      )
+    (insert "\t}\n")
+    (insert "}\n")))
 
 (defun generate-layer-codes-enum ()
   (let ((layers (mapcar #'layer-name (all-layers))))
@@ -455,8 +529,13 @@
 ")
     (generate-layer-codes-enum)
     (generate-custom-keycodes)
+    (generate-combo-events-and-array)
     (generate-keymaps-matrix)
     (generate-process-record-user)))
+
+(combo '(left right ENT))
+(combo '(a q f (x "whatever")))
+(combo '(a x C-x))
 
 (defun generate-config ()
   (with-temp-file keymap-config
@@ -464,14 +543,21 @@
 #define TAPPING_TERM 180
 #define COMBO_TERM 100
 #define FORCE_NKRO
-#undef RGBLIGHT_ANIMATIONS")))
+#undef RGBLIGHT_ANIMATIONS
+")
+    (awhen (combos-all)
+      (insert (format "#define COMBO_COUNT %s\n"
+                      (length it))))))
 
 (defun generate-rules ()
   (with-temp-file keymap-rules
     (insert "TAP_DANCE_ENABLE = no
-COMBO_ENABLE = yes
 FORCE_NKRO = yes
-RGBLIGHT_ENABLE = no")))
+RGBLIGHT_ENABLE = no
+")
+    (awhen (combos-all)
+      (insert (format "COMBO_ENABLE = %s\n"
+                      (if it "yes" "no"))))))
 
 (defun generate-all ()
   (generate-keymap)
