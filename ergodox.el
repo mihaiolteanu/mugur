@@ -15,7 +15,7 @@
 
     ("Punctuation"
      (ENT "enter") (ESC "escape") (bspace) (TAB "tab")
-     (space "space") (- "minus") (= "equal")
+     (SPC "space") (- "minus") (= "equal")
      (lbracket "lbracket") ("[" "lbracket")
      (rbracket "rbracket") ("]" "rbracket") (\ "bslash")
      (nonus-hash "nonus_hash") (colon "scolon") (quote "quote") (grave "grave")
@@ -35,11 +35,11 @@
     
     ("Modifiers"
      (C "lctl") (M "lalt")
-     (S "lshift") (G "lgui")
+     (S "lsft") (G "lgui")
      (C-M "lca") (C-M-S "meh") (C-M-G "hypr"))
 
     ("Commands"
-     (insert) (home) (prior "pgup") (delete) (end) (next "pgdown")
+     (insert) (home) (prior "pgup") (DEL "delete") (end) (next "pgdown")
      (right) (left) (down) (up))
 
     ("Media Keys"
@@ -123,7 +123,7 @@
                   (prefix (s-join "-" (butlast s))))
              (if (modifier-key? (intern prefix))
                  (modifier+key-ss (intern prefix)
-                               (intern (car (last s))))
+                                  (intern (car (last s))))
                nil)))
           (t nil)))
 
@@ -160,7 +160,7 @@
   "Hold MOD and press KEY for send_string macros."
   (s-format "$0($1)" 'elt
             (list (modifier-key-ss mod)
-                  (keycode-ss key))))
+                  (format "\"%s\"" (symbol-name key)))))
 
 (defun layer-switch (action layer)
   "Switch to the given LAYER."
@@ -227,10 +227,10 @@
 
 (ert-deftest test-ss-macro ()
   (cl-dolist (test
-       '((("you do" C-x) "\"you do\" SS_LCTL(X_X)")
-         ((M-x a)        "SS_LALT(X_X) SS_TAP(X_A)")
-         ((M-x a b)      "SS_LALT(X_X) SS_TAP(X_A) SS_TAP(X_B)")
-         ((M-x "this" a) "SS_LALT(X_X) \"this\" SS_TAP(X_A)")
+       '((("you do" C-x) "\"you do\" SS_LCTL(\"x\")")
+         ((M-x a)        "SS_LALT(\"x\") SS_TAP(X_A)")
+         ((M-x a b)      "SS_LALT(\"x\") SS_TAP(X_A) SS_TAP(X_B)")
+         ((M-x "this" a) "SS_LALT(\"x\") \"this\" SS_TAP(X_A)")
          ))
     (should (equal (ss-macro-define (car test))
                    (cadr test)))))
@@ -314,9 +314,8 @@
     (insert "enum layer_codes {\n")
     (insert (format "\t%s = 0,\n" (car layers)))
     (setf layers (cdr layers))
-    (cl-dolist (layer (butlast layers))
+    (cl-dolist (layer layers)
       (insert (format "\t%s,\n" layer)))
-    (insert (format "\t%s\n" (car (last layers))))
     (insert "};\n\n")))
 
 (defconst ergodox-layout-template
@@ -357,21 +356,21 @@
    (---)        (---)  (w)   (e)   (r)  (t) (---)
    (---)         (a)  (G t) (M d) (C f) (g)
    (osm S)       (z)   (x)   (c)   (v)  (b) (---)
-   (tg emacs_l) (---) (---) (---) (---)
+   (tg xwindow) (---) (---) (---) (---)
    
                                             (---) (---)
                                                   (M-x)
-                (lt emacs_r DEL) (lt xwindow SPC) (TAB)
+                (lt xwindow DEL) (lt xwindow SPC) (TAB)
    ;; ------------------------------------------------------------------   
    (---) (---)   (---)         (---)       (---) (---) (---)
-   (---)  (y) (lt num_up u) (lt numeric i)  (o)  (---) (---)
+   (---)  (y) (lt numeric u) (lt numeric i)  (o)  (---) (---)
           (h)    (C j)      (lt symbols k) (M l)  (p)  (---)
    (---)  (n)     (m)         (comma)      (dot)  (q)  (osm S)
                  (---)         (---)       (---) (---) (---)
 
    (---) (---)
    (C-z)
-   (lt mdia ESC) (lt emacs_l ENT) (---)))
+   (lt xwindow ESC) (lt xwindow ENT) (---)))
 
 (define-layer "xwindow" 1
   '(( ) ( ) ( ) ( ) ( ) ( ) ( )
@@ -425,7 +424,7 @@
                             ( )
                     ( ) ( ) ( )
  ;; ---------------------------
-    ( ) ( ) ( ) ( ) ( ) ( ) (C-x a b c)
+    ( ) ( ) ( ) ( ) ( ) ( ) (C-x ENT)
     ( ) ( ) ( ) ( ) ( ) ( ) ( )
         ( ) ( ) ( ) ( ) ( ) ( )
     ( ) ( ) ( ) ( ) ( ) ( ) ( )
@@ -435,14 +434,51 @@
     ( ) ( ) ( )
     ))
 
-(defconst keymap-filename "./elisp-keymap.c")
+(defconst keymaps-path "~/projects/qmk_firmware/keyboards/ergodox_ez/keymaps")
+(defconst keymap-name "elisp")
 
-(with-temp-file keymap-filename
-  (generate-layer-codes-enum)
-  (generate-custom-keycodes)
-  (generate-keymaps-matrix)
-  (generate-process-record-user))
+(defconst keymap-keymap (concat (file-name-as-directory keymaps-path)
+                                  "elisp/keymap.c"))
+(defconst keymap-config (concat (file-name-as-directory keymaps-path)
+                                  "elisp/config.h"))
+(defconst keymap-rules (concat (file-name-as-directory keymaps-path)
+                                  "elisp/rules.mk"))
 
+(defun generate-keymap ()
+  (with-temp-file keymap-keymap
+    (insert "#include QMK_KEYBOARD_H
+#include \"version.h\"
+
+#define ___ KC_TRNS
+#define _X_ KC_NO
+
+")
+    (generate-layer-codes-enum)
+    (generate-custom-keycodes)
+    (generate-keymaps-matrix)
+    (generate-process-record-user)))
+
+(defun generate-config ()
+  (with-temp-file keymap-config
+    (insert "#undef TAPPING_TERM
+#define TAPPING_TERM 180
+#define COMBO_TERM 100
+#define FORCE_NKRO
+#undef RGBLIGHT_ANIMATIONS")))
+
+(defun generate-rules ()
+  (with-temp-file keymap-rules
+    (insert "TAP_DANCE_ENABLE = no
+COMBO_ENABLE = yes
+FORCE_NKRO = yes
+RGBLIGHT_ENABLE = no")))
+
+(defun generate-all ()
+  (generate-keymap)
+  (generate-config)
+  (generate-rules))
+
+(generate-all)
 
 ;; (define-layer "template"
 ;;   '(( ) ( ) ( ) ( ) ( ) ( ) ( )
