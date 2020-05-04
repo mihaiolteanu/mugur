@@ -84,7 +84,7 @@
       (set-keycodes)
       (keycode-raw key)))
 
-  (defun key-in-category? (category key)
+  (defun key-in-category-p (category key)
     (cl-find key
      (cdr (cl-find category
                    supported-keycodes
@@ -92,14 +92,14 @@
      :key #'car))
 
   (defun modifier-key-p (key)
-    (key-in-category? "Modifiers" key))
+    (key-in-category-p "Modifiers" key))
   
-  (defun special-key? (key)
-    (key-in-category? "Special Keys" key))
+  (defun special-key-p (key)
+    (key-in-category-p "Special Keys" key))
   
   (cl-defun keycode (key &key (ss nil) (mod nil))
     (awhen (keycode-raw key)
-      (if (special-key? key)
+      (if (special-key-p key)
           it
         (if (modifier-key-p key)
             (if ss
@@ -110,15 +110,11 @@
           (if ss
               (format "SS_TAP(X_%s)" it)              
             (concat "KC_" it))))))
-  
-  (defun ss-keycode (key)
-    "Keycodes for send_string macros."
-    (awhen (keycode-raw key)
-      (if (modifier-key-p key)
-          (concat "SS_" it)
-        (concat "X_" it))))
 
   (cl-defun key-or-sequence (key &key (ss nil))
+    "Generate simple keys or key sequences, like M-x or C-M-a.
+If SS is t, generate the key sequence as needed by SEND_STRING
+macros."
     (cond ((awhen (keycode key :ss ss) it))
           ((s-contains? "-" (if (symbolp key)
                                 (symbol-name key)
@@ -130,6 +126,7 @@
                                (intern (car (last s)))
                                :ss ss)
                nil)))
+          ((and (stringp key) ss) (format "\"%s\"" key))
           (t nil)))
 
   (defun gendoc-keycodes ()
@@ -151,11 +148,6 @@
     (dolist (category supported-keycodes)
       (dolist (entry (cdr category))
         (should (keycode (car entry)))))))
-
-(defun layer-toggle (layer key)
-  "LAYER when held, KEY when tapped."
-  (s-format "LT($0, $1)" 'elt
-            (list layer (keycode key))))
 
 (defun modtap (mod key)
   "MOD when held, KEY when tapped."
@@ -186,10 +178,8 @@
       (ss-macro-entries nil))
   (defun ss-macro-transform-keys (keys)
     (mapcar (lambda (key)
-              (if (stringp key)
-                  (format "\"%s\"" key)
-                (key-or-sequence key :ss t)))
-            keys))
+         (key-or-sequence key :ss t))
+       keys))
 
   (defun ss-macro-define (entry)
     (cl-reduce
@@ -277,8 +267,6 @@
     (_ (let ((macro-entry (ss-macro key)))
          (when (ss-macro-entry-p macro-entry)
            (ss-macro-entry-name macro-entry))))))
-
-(transform-key '(x))
 
 (ert-deftest test-transform-key ()
   (cl-dolist (test
@@ -612,5 +600,6 @@ RGBLIGHT_ENABLE = no
 ;;     ( )
 ;;     ( ) ( ) ( )
 ;;     ))
+
 
 
