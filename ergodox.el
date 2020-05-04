@@ -162,22 +162,6 @@
             (list (modifier-key-ss mod)
                   (format "\"%s\"" (symbol-name key)))))
 
-(defun layer-switch (action layer)
-  "Switch to the given LAYER."
-  (format "%s(%s)"
-          (upcase (symbol-name action))
-          (upcase (symbol-name layer))))
-
-(defun layer-switch-lm-or-lt (action layer mod-or-key)
-  "Switch to the given LAYER (with tap or mod)"
-  (let ((action-str (symbol-name action)))
-    (format "%s(%s, %s)"
-            (upcase (symbol-name action))
-            (upcase (symbol-name layer))
-            (if (string-equal action-str "lm")
-                (modifier-key mod-or-key)
-              (keycode mod-or-key)))))
-
 (defun one-shot-mod (mod)
   "Hold down MOD for one key press only."
   (format "OSM(%s)" (modifier-key-mod mod)))
@@ -235,6 +219,45 @@
     (should (equal (ss-macro-define (car test))
                    (cadr test)))))
 
+(defun layer-switching-codes ()
+  '(((df layer)  "Set the base (default) layer.")
+    ((mo layer)  "Momentarily turn on layer when pressed (requires KC_TRNS on destination layer).")
+    ((osl layer) "Momentarily activates layer until a key is pressed. See One Shot Keys for details.")
+    ((tg layer)  "Toggle layer on or off.")
+    ((to layer)  "Turns on layer and turns off all other layers, except the default layer.")
+    ((tt layer)  "Normally acts like MO unless it's tapped multiple times, which toggles layer on.")
+    ((lm layer mod) "Momentarily turn on layer (like MO) with mod active as well.")
+    ((lt layer kc) "Turn on layer when held, kc when tapped")))
+
+(defun layer-switch-p (key)
+  (cl-member key (layer-switching-codes)
+             :key #'caar))
+
+(defun layer-switch (action layer &optional key-or-mod)
+  "Switch to the given LAYER."
+  (if key-or-mod
+      (let ((action-str (symbol-name action)))
+        (format "%s(%s, %s)"
+                (upcase (symbol-name action))
+                (upcase (symbol-name layer))
+                (if (string-equal action-str "lm")
+                    (modifier-key key-or-mod)
+                  (keycode key-or-mod))))
+    (format "%s(%s)"
+            (upcase (symbol-name action))
+            (upcase (symbol-name layer)))))
+
+(defun gendoc-layer-switching ()
+  (interactive)
+  (with-current-buffer (get-buffer-create "layer-switching-codes")
+    (org-mode)
+    (local-set-key (kbd "q") 'kill-buffer)
+    (insert "* Layer Switching Codes\n\n")
+    (mapcar (lambda (code)
+         (insert (format "%-15s - %s\n" (car code) (cadr code))))
+       (layer-switching-codes))
+    (switch-to-buffer (get-buffer-create "layer-switching-codes"))))
+
 (defun transform-key (key)
   (pcase key
     (`() (keycode '()))
@@ -248,11 +271,11 @@
     (`(osm ,mod) (one-shot-mod mod))
     (`(osl ,layer) (one-shot-layer layer))
     ((and `(,action ,layer)
-          (guard (member action '(df mo osl tg to tt))))
+          (guard (layer-switch-p action)))
      (layer-switch action layer))
-    ((and `(,action ,layer ,mod-or-key)
-          (guard (member action '(lm lt))))
-     (layer-switch-lm-or-lt action layer mod-or-key))
+    ((and `(,action ,layer ,key-or-mod)
+          (guard (layer-switch-p action)))
+     (layer-switch action layer key-or-mod))
     (_ (let ((macro-entry (ss-macro key)))
          (when (ss-macro-entry-p macro-entry)
            (ss-macro-entry-name macro-entry))))))
