@@ -34,7 +34,7 @@
      ("(" "left_paren") (")" "right_paren")
      (_ "underscore") (+ "plus")
      ({ "left_curly_brace") (} "right_curly_brace")
-     (| "pipe") (: "colon") (double-quote "double_quote")
+     (| "pipe") (: "colon") ("\"" "double_quote") (double_quote "double_quote")
      (< "left_angle_bracket") (> "right_angle_bracket")
      (question) ("?" "question"))
     
@@ -52,10 +52,10 @@
      (mute "audio_mute") (stop "media_stop"))
 
     ("Mouse Keys"
-     (ms-up) (ms-down) (ms-left) (ms-right)
-     (ms-btn1) (ms-btn2) (ms-btn3) (ms-btn4) (ms-btn5)
-     (ms-wh-up) (ms-wh-down) (ms-wh-left) (ms-wh-right)
-     (ms-accel1) (ms-accel2) (ms-accel3))
+     (ms_up) (ms_down) (ms_left) (ms_right)
+     (ms_btn1) (ms_btn2) (ms_btn3) (ms_btn4) (ms_btn5)
+     (ms_wh-up) (ms_wh-down) (ms_wh-left) (ms_wh-right)
+     (ms_accel1) (ms_accel2) (ms_accel3))
     
     ("Special Keys"
      (--- "_x_") (() "___"))))
@@ -110,12 +110,13 @@
     (awhen (keycode-raw key)
       (concat "X_" it)))
 
-  (defun modifier-key-or-combo (combo)
-    (cond ((modifier-key-p combo) (modifier-key combo))
-          ((s-contains? "-" (if (symbolp combo)
-                                (symbol-name combo)
+  (defun key-or-sequence (key)
+    "Transform a simple key, a mod key or a sequence like C-M-x."
+    (cond ((keycode key) (keycode key))
+          ((s-contains? "-" (if (symbolp key)
+                                (symbol-name key)
                               ""))
-           (let* ((s (s-split "-" (symbol-name combo)))
+           (let* ((s (s-split "-" (symbol-name key)))
                   (prefix (s-join "-" (butlast s))))
              (if (modifier-key-p (intern prefix))
                  (modifier+key (intern prefix)
@@ -277,7 +278,7 @@
   (interactive)
   (with-current-buffer (get-buffer-create "layer-switching-codes")
     (org-mode)
-    (local-set-key (kbd "q") 'kill-buffer)
+    (local-set-key (kbd "q") 'kill-current-buffer)
     (insert "* Layer Switching Codes\n\n")
     (mapcar (lambda (code)
          (insert (format "%-15s - %s\n" (car code) (cadr code))))
@@ -287,10 +288,9 @@
 (defun transform-key (key)
   (pcase key
     (`() (keycode '()))
-    ((and `(,mod-or-combo)
-          (guard (modifier-key-or-combo mod-or-combo)))
-     (modifier-key-or-combo mod-or-combo))
-    (`(,s) (keycode s))
+    ((and `(,key)
+          (guard (key-or-sequence key)))
+     (key-or-sequence key))
     ((and `(,modifier ,key)
           (guard (modifier-key-p modifier)))
      (modtap modifier key))
@@ -317,6 +317,10 @@
          (("what you do") "\"what you do\""))))
     (should (equal (transform-key (car test))
                    (cadr test)))))
+
+(transform-key '(C-x "whatever"))
+(transform-key '(C-x))
+(ss-macro-transform-keys '(C-x "whatever"))
 
 (defun transform-keys (keys)
   (mapcar #'transform-key keys))
