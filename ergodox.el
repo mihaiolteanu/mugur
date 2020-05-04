@@ -97,22 +97,29 @@
   (defun special-key? (key)
     (key-in-category? "Special Keys" key))
   
-  (defun keycode (key)
+  (cl-defun keycode (key &key (ss nil) (mod nil))
     (awhen (keycode-raw key)
-      ;; Return the special keys as is.
-      (if (or (special-key? key)
-              (modifier-key-p key))          
+      (if (special-key? key)
           it
-        (concat "KC_" it))))
-
-  (defun keycode-ss (key)
+        (if (modifier-key-p key)
+            (if ss
+                (concat "SS_" it)
+              (if mod
+                  (concat "MOD_" it)
+                it))
+          (if ss
+              (format "SS_TAP(X_%s)" it)              
+            (concat "KC_" it))))))
+  
+  (defun ss-keycode (key)
     "Keycodes for send_string macros."
     (awhen (keycode-raw key)
-      (concat "X_" it)))
+      (if (modifier-key-p key)
+          (concat "SS_" it)
+        (concat "X_" it))))
 
-  (defun key-or-sequence (key)
-    "Transform a simple key, a mod key or a sequence like C-M-x."
-    (cond ((keycode key) (keycode key))
+  (cl-defun key-or-sequence (key &key (ss nil))
+    (cond ((awhen (keycode key :ss ss) it))
           ((s-contains? "-" (if (symbolp key)
                                 (symbol-name key)
                               ""))
@@ -120,33 +127,10 @@
                   (prefix (s-join "-" (butlast s))))
              (if (modifier-key-p (intern prefix))
                  (modifier+key (intern prefix)
-                               (intern (car (last s))))
+                               (intern (car (last s)))
+                               :ss ss)
                nil)))
           (t nil)))
-
-  (defun modifier-key-or-combo-ss (combo)
-    (cond ((modifier-key-p combo) (modifier-key-ss combo))
-          ((s-contains? "-" (if (symbolp combo)
-                                (symbol-name combo)
-                              ""))
-           (let* ((s (s-split "-" (symbol-name combo)))
-                  (prefix (s-join "-" (butlast s))))
-             (if (modifier-key-p (intern prefix))
-                 (modifier+key-ss (intern prefix)
-                                  (intern (car (last s))))
-               nil)))
-          (t nil)))
-
-  (defun modifier-key (key)
-    "Ctrl, Alt and the like."
-    (when (modifier-key-p key)
-      (keycode-raw key)))
-
-  (defun modifier-key-mod (key)
-    (format "MOD_%s" (modifier-key key)))
-
-  (defun modifier-key-ss (key)
-    (format "SS_%s" (modifier-key key)))
 
   (defun gendoc-keycodes ()
     (interactive)
@@ -162,7 +146,6 @@
                                     "S --> %s\n")
                             (car entry) (keycode-string entry)))))
         (insert "\n"))))
-  (generate-documentation)
   
   (ert-deftest keycodes-should-not-error ()
     (dolist (category supported-keycodes)
@@ -177,32 +160,24 @@
 (defun modtap (mod key)
   "MOD when held, KEY when tapped."
   (s-format "MT($0, $1)" 'elt
-            (list (modifier-key-mod mod)
+            (list (keycode mod :mod t)
                   (keycode key))))
 
-(defun modifier+key (mod key)
+(cl-defun modifier+key (mod key &key (ss nil))
   "Hold MOD and press KEY."
   (s-format "$0($1)" 'elt
-            (list (modifier-key mod)
-                  (keycode key))))
-
-(defun modifier+key-ss (mod key)
-  "Hold MOD and press KEY for send_string macros."
-  (s-format "$0($1)" 'elt
-            (list (modifier-key-ss mod)
-                  (format "\"%s\"" (symbol-name key)))))
+            (list (keycode mod :ss ss)
+                  (if ss
+                      (format "\"%s\"" (symbol-name key))
+                    (keycode key)))))
 
 (defun one-shot-mod (mod)
   "Hold down MOD for one key press only."
-  (format "OSM(%s)" (modifier-key-mod mod)))
+  (format "OSM(%s)" (keycode mod :mod t)))
 
 (defun one-shot-layer (layer)
   "Switch to LAYER for one key press only."
   (format "OSL(%s)" (upcase (symbol-name layer))))
-
-
-(defun tap-ss (key)
-  (format "SS_TAP(%s)" (keycode-ss key )))
 
 (cl-defstruct ss-macro-entry
   name expansion)
@@ -211,13 +186,10 @@
       (ss-macro-entries nil))
   (defun ss-macro-transform-keys (keys)
     (mapcar (lambda (key)
-         (let ((combo (modifier-key-or-combo-ss key)))
-           (if combo
-               combo
-             (if (stringp key)
-                 (format "\"%s\"" key)
-               (tap-ss key)))))
-       keys))
+              (if (stringp key)
+                  (format "\"%s\"" key)
+                (key-or-sequence key :ss t)))
+            keys))
 
   (defun ss-macro-define (entry)
     (cl-reduce
@@ -305,6 +277,8 @@
     (_ (let ((macro-entry (ss-macro key)))
          (when (ss-macro-entry-p macro-entry)
            (ss-macro-entry-name macro-entry))))))
+
+(transform-key '(x))
 
 (ert-deftest test-transform-key ()
   (cl-dolist (test
