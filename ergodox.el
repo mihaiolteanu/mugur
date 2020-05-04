@@ -4,8 +4,8 @@
 
 (defconst supported-keycodes
   '(("Letters and Numbers"
-     (a) (b) (c) (d) (e) (f) (g) (h) (i) (j) (k) (l) (m) (n)
-     (o) (p) (q) (r) (s) (t) (u) (v) (w) (x) (y) (z)           
+     (a) (b) (c) (d) (e) (f) (g) (h) (i) (j) (k) (l) (m)
+     (n) (o) (p) (q) (r) (s) (t) (u) (v) (w) (x) (y) (z)           
      (1) (2) (3) (4) (5) (6) (7) (8) (9) (0))
     
     ("Function Keys"
@@ -14,16 +14,21 @@
      (F21) (F22) (F23) (F24))
 
     ("Punctuation"
-     (ENT "enter") (ESC "escape") (bspace) (TAB "tab")
-     (SPC "space") (- "minus") (= "equal")
+     (ENT "enter") (enter) (ESC "escape") (escape) (bspace)
+     (TAB "tab") (tab) (SPC "space") (space)
+     (- "minus") (= "equal")
      (lbracket "lbracket") ("[" "lbracket")
-     (rbracket "rbracket") ("]" "rbracket") (\ "bslash")
-     (nonus-hash "nonus_hash") (colon "scolon") (quote "quote") (grave "grave")
-     (comma "comma") (dot "dot") (/ "slash"))
+     (rbracket "rbracket") ("]" "rbracket")
+     (bslash) ("\\" "bslash")
+     (nonus-hash "nonus_hash")
+     (colon "scolon") (";" "scolon") (quote) ("'" "quote")
+     (grave "grave") ("`" "grave")
+     (comma "comma") ("," "comma") (dot "dot") ("." "dot")
+     (slash) ("/" "slash"))
     
     ("Shifted Keys"
      (~ "tilde") (! "exclaim") (@ "at")
-     (hash) ($ "dollar") (% "percent")
+     (hash) ("#" "hash") ($ "dollar") (% "percent")
      (^ "circumflex") (& "ampersand") (* "asterix")
      (lparen "left_paren") (rparen "right_paren")
      ("(" "left_paren") (")" "right_paren")
@@ -31,7 +36,7 @@
      ({ "left_curly_brace") (} "right_curly_brace")
      (| "pipe") (: "colon") (double-quote "double_quote")
      (< "left_angle_bracket") (> "right_angle_bracket")
-     (? "question"))
+     (question) ("?" "question"))
     
     ("Modifiers"
      (C "lctl") (M "lalt")
@@ -39,7 +44,7 @@
      (C-M "lca") (C-M-S "meh") (C-M-G "hypr"))
 
     ("Commands"
-     (insert) (home) (prior "pgup") (DEL "delete") (end) (next "pgdown")
+     (insert) (home) (prior "pgup") (delete) (end) (next "pgdown")
      (right) (left) (down) (up))
 
     ("Media Keys"
@@ -56,16 +61,19 @@
      (--- "_x_") (() "___"))))
 
 (let ((keycodes (make-hash-table :test 'equal)))
+  (defun keycode-string (keycode)
+    (if (= (length keycode) 2)
+        (upcase (cadr keycode))
+      (if (numberp (car keycode))
+          (number-to-string (car keycode))
+        (symbol-name (car keycode)))))
+  
   (defun set-keycodes ()
-    "Add all keycodes in hashtable."
-    (cl-dolist (categories supported-keycodes)
-      (cl-dolist (entry (cdr categories))
+    "Add all the keycodes into a hashtable."
+    (dolist (categories supported-keycodes)
+      (dolist (entry (cdr categories))
           (puthash (car entry)
-                   (if (= (length entry) 2)
-                       (upcase (cadr entry))
-                     (if (numberp (car entry))
-                         (number-to-string (car entry))
-                       (upcase (symbol-name (car entry)))))
+                   (upcase (keycode-string entry))
                    keycodes))))
 
   (defun keycode-raw (key)
@@ -83,7 +91,7 @@
                    :test #'string-equal :key #'car))
      :key #'car))
 
-  (defun modifier-key? (key)
+  (defun modifier-key-p (key)
     (key-in-category? "Modifiers" key))
   
   (defun special-key? (key)
@@ -92,36 +100,37 @@
   (defun keycode (key)
     (awhen (keycode-raw key)
       ;; Return the special keys as is.
-      (if (special-key? key)          
+      (if (or (special-key? key)
+              (modifier-key-p key))          
           it
         (concat "KC_" it))))
-  
+
   (defun keycode-ss (key)
     "Keycodes for send_string macros."
     (awhen (keycode-raw key)
       (concat "X_" it)))
 
   (defun modifier-key-or-combo (combo)
-    (cond ((modifier-key? combo) (modifier-key combo))
+    (cond ((modifier-key-p combo) (modifier-key combo))
           ((s-contains? "-" (if (symbolp combo)
                                 (symbol-name combo)
                               ""))
            (let* ((s (s-split "-" (symbol-name combo)))
                   (prefix (s-join "-" (butlast s))))
-             (if (modifier-key? (intern prefix))
+             (if (modifier-key-p (intern prefix))
                  (modifier+key (intern prefix)
                                (intern (car (last s))))
                nil)))
           (t nil)))
 
   (defun modifier-key-or-combo-ss (combo)
-    (cond ((modifier-key? combo) (modifier-key-ss combo))
+    (cond ((modifier-key-p combo) (modifier-key-ss combo))
           ((s-contains? "-" (if (symbolp combo)
                                 (symbol-name combo)
                               ""))
            (let* ((s (s-split "-" (symbol-name combo)))
                   (prefix (s-join "-" (butlast s))))
-             (if (modifier-key? (intern prefix))
+             (if (modifier-key-p (intern prefix))
                  (modifier+key-ss (intern prefix)
                                   (intern (car (last s))))
                nil)))
@@ -129,15 +138,35 @@
 
   (defun modifier-key (key)
     "Ctrl, Alt and the like."
-    (when (modifier-key? key)
+    (when (modifier-key-p key)
       (keycode-raw key)))
 
   (defun modifier-key-mod (key)
     (format "MOD_%s" (modifier-key key)))
 
   (defun modifier-key-ss (key)
-    (format "SS_%s" (modifier-key key))))
+    (format "SS_%s" (modifier-key key)))
 
+  (defun gendoc-keycodes ()
+    (interactive)
+    (with-current-buffer (get-buffer-create "keycodes.org")
+      (org-mode)
+      (erase-buffer)
+      (dolist (category supported-keycodes)
+        (insert (format "* %s\n\n" (car category)))
+        (let ((max (cl-loop for entry in (cdr category)
+                            maximize (length (keycode-string entry)))))
+          (dolist (entry (cdr category))            
+            (insert (format (concat "\t%-" (number-to-string max)
+                                    "S --> %s\n")
+                            (car entry) (keycode-string entry)))))
+        (insert "\n"))))
+  (generate-documentation)
+  
+  (ert-deftest keycodes-should-not-error ()
+    (dolist (category supported-keycodes)
+      (dolist (entry (cdr category))
+        (should (keycode (car entry)))))))
 
 (defun layer-toggle (layer key)
   "LAYER when held, KEY when tapped."
@@ -236,13 +265,10 @@
 (defun layer-switch (action layer &optional key-or-mod)
   "Switch to the given LAYER."
   (if key-or-mod
-      (let ((action-str (symbol-name action)))
-        (format "%s(%s, %s)"
+      (format "%s(%s, %s)"
                 (upcase (symbol-name action))
                 (upcase (symbol-name layer))
-                (if (string-equal action-str "lm")
-                    (modifier-key key-or-mod)
-                  (keycode key-or-mod))))
+                (keycode key-or-mod))
     (format "%s(%s)"
             (upcase (symbol-name action))
             (upcase (symbol-name layer)))))
@@ -266,7 +292,7 @@
      (modifier-key-or-combo mod-or-combo))
     (`(,s) (keycode s))
     ((and `(,modifier ,key)
-          (guard (modifier-key? modifier)))
+          (guard (modifier-key-p modifier)))
      (modtap modifier key))
     (`(osm ,mod) (one-shot-mod mod))
     (`(osl ,layer) (one-shot-layer layer))
@@ -457,7 +483,7 @@
    
                                             (---) (---)
                                                   (M-x)
-                (lt xwindow DEL) (lt xwindow SPC) (TAB)
+           (lt xwindow bspace) (lt xwindow space) (tab)
    ;; ------------------------------------------------------------------   
    (---) (---)   (---)         (---)       (---) (---) (---)
    (---)  (y) (lt numeric u) (lt numeric i)  (o)  (---) (---)
@@ -467,7 +493,7 @@
 
    (---) (---)
    (C-z)
-   (lt xwindow ESC) (lt xwindow ENT) (---)))
+   (lt xwindow escape) (lt xwindow enter) (---)))
 
 (define-layer "xwindow" 1
   '(( ) ( ) ( ) ( ) ( ) ( ) ( )
