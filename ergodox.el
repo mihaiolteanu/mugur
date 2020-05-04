@@ -171,6 +171,7 @@ macros."
   "Switch to LAYER for one key press only."
   (format "OSL(%s)" (upcase (symbol-name layer))))
 
+;;;; Macros
 (cl-defstruct ss-macro-entry
   name expansion)
 
@@ -211,100 +212,8 @@ macros."
     (should (equal (ss-macro-define (car test))
                    (cadr test)))))
 
-(defun layer-switching-codes ()
-  '(((df layer)  "Set the base (default) layer.")
-    ((mo layer)  "Momentarily turn on layer when pressed (requires KC_TRNS on destination layer).")
-    ((osl layer) "Momentarily activates layer until a key is pressed. See One Shot Keys for details.")
-    ((tg layer)  "Toggle layer on or off.")
-    ((to layer)  "Turns on layer and turns off all other layers, except the default layer.")
-    ((tt layer)  "Normally acts like MO unless it's tapped multiple times, which toggles layer on.")
-    ((lm layer mod) "Momentarily turn on layer (like MO) with mod active as well.")
-    ((lt layer kc) "Turn on layer when held, kc when tapped")))
 
-(defun layer-switch-p (key)
-  (cl-member key (layer-switching-codes)
-             :key #'caar))
-
-(defun layer-switch (action layer &optional key-or-mod)
-  "Switch to the given LAYER."
-  (if key-or-mod
-      (format "%s(%s, %s)"
-                (upcase (symbol-name action))
-                (upcase (symbol-name layer))
-                (keycode key-or-mod))
-    (format "%s(%s)"
-            (upcase (symbol-name action))
-            (upcase (symbol-name layer)))))
-
-(defun gendoc-layer-switching ()
-  (interactive)
-  (with-current-buffer (get-buffer-create "layer-switching-codes")
-    (org-mode)
-    (local-set-key (kbd "q") 'kill-current-buffer)
-    (insert "* Layer Switching Codes\n\n")
-    (mapcar (lambda (code)
-         (insert (format "%-15s - %s\n" (car code) (cadr code))))
-       (layer-switching-codes))
-    (switch-to-buffer (get-buffer-create "layer-switching-codes"))))
-
-(defun transform-key (key)
-  (pcase key
-    (`() (keycode '()))
-    ((and `(,key)
-          (guard (key-or-sequence key)))
-     (key-or-sequence key))
-    ((and `(,modifier ,key)
-          (guard (modifier-key-p modifier)))
-     (modtap modifier key))
-    (`(osm ,mod) (one-shot-mod mod))
-    (`(osl ,layer) (one-shot-layer layer))
-    ((and `(,action ,layer)
-          (guard (layer-switch-p action)))
-     (layer-switch action layer))
-    ((and `(,action ,layer ,key-or-mod)
-          (guard (layer-switch-p action)))
-     (layer-switch action layer key-or-mod))
-    (_ (let ((macro-entry (ss-macro key)))
-         (when (ss-macro-entry-p macro-entry)
-           (ss-macro-entry-name macro-entry))))))
-
-(ert-deftest test-transform-key ()
-  (cl-dolist (test
-       '((()      "___")
-         ((c)     "KC_C")
-         ((C)     "LCTL")
-         ((M-a)   "LALT(KC_A)")
-         ((C-M-a) "LCA(KC_A)")         
-         ((M a)   "MT(MOD_LALT, KC_A)"
-         (("what you do") "\"what you do\""))))
-    (should (equal (transform-key (car test))
-                   (cadr test)))))
-
-(transform-key '(C-x "whatever"))
-(transform-key '(C-x))
-(ss-macro-transform-keys '(C-x "whatever"))
-
-(defun transform-keys (keys)
-  (mapcar #'transform-key keys))
-
-(cl-defstruct layer
-  name pos keys)
-
-(let (layers)
-  (defun define-layer (name pos keys)
-    (cl-pushnew
-     (make-layer :name (upcase name)
-                 :pos pos
-                 :keys (transform-keys keys))
-     layers
-     :test (lambda (old new)
-             (string-equal (layer-name old)
-                           (layer-name new)))))
-
-  (defun all-layers ()
-    (cl-sort (copy-sequence layers)
-             #'< :key #'layer-pos)))
-
+;;;; Combos
 (cl-defstruct combo
   name keys expansion)
 
@@ -347,6 +256,111 @@ macros."
     (should (equal (combo-define (car test))
                    (cadr test)))))
 
+
+;;;; Layer Switching
+(defun layer-switching-codes ()
+  '(((df layer)  "Set the base (default) layer.")
+    ((mo layer)  "Momentarily turn on layer when pressed (requires KC_TRNS on destination layer).")
+    ((osl layer) "Momentarily activates layer until a key is pressed. See One Shot Keys for details.")
+    ((tg layer)  "Toggle layer on or off.")
+    ((to layer)  "Turns on layer and turns off all other layers, except the default layer.")
+    ((tt layer)  "Normally acts like MO unless it's tapped multiple times, which toggles layer on.")
+    ((lm layer mod) "Momentarily turn on layer (like MO) with mod active as well.")
+    ((lt layer kc) "Turn on layer when held, kc when tapped")))
+
+(defun layer-switch-p (key)
+  (cl-member key (layer-switching-codes)
+             :key #'caar))
+
+(defun layer-switch (action layer &optional key-or-mod)
+  "Generate code to switch to the given LAYER."
+  (if key-or-mod
+      (format "%s(%s, %s)"
+                (upcase (symbol-name action))
+                (upcase (symbol-name layer))
+                (keycode key-or-mod))
+    (format "%s(%s)"
+            (upcase (symbol-name action))
+            (upcase (symbol-name layer)))))
+
+(defun gendoc-layer-switching ()
+  (interactive)
+  (with-current-buffer (get-buffer-create "layer-switching-codes")
+    (org-mode)
+    (local-set-key (kbd "q") 'kill-current-buffer)
+    (insert "* Layer Switching Codes\n\n")
+    (mapcar (lambda (code)
+         (insert (format "%-15s - %s\n" (car code) (cadr code))))
+       (layer-switching-codes))
+    (switch-to-buffer (get-buffer-create "layer-switching-codes"))))
+
+
+;;;; Keymaps, Layers and Transformations.
+(defun transform-key (key)
+  "Transform a keymap KEY to the qmk equivalent."
+  (pcase key
+    (`() (keycode '()))
+    ((and `(,key)
+          (guard (key-or-sequence key)))
+     (key-or-sequence key))
+    ((and `(,modifier ,key)
+          (guard (modifier-key-p modifier)))
+     (modtap modifier key))
+    (`(osm ,mod) (one-shot-mod mod))
+    (`(osl ,layer) (one-shot-layer layer))
+    ((and `(,action ,layer)
+          (guard (layer-switch-p action)))
+     (layer-switch action layer))
+    ((and `(,action ,layer ,key-or-mod)
+          (guard (layer-switch-p action)))
+     (layer-switch action layer key-or-mod))
+    (_ (let ((macro-entry (ss-macro key)))
+         (when (ss-macro-entry-p macro-entry)
+           (ss-macro-entry-name macro-entry))))))
+
+(defun transform-keys (keys)
+  (mapcar #'transform-key keys))
+
+(ert-deftest test-transform-key ()
+  (cl-dolist (test
+       '((()      "___")
+         ((c)     "KC_C")
+         ((C)     "LCTL")
+         ((M-a)   "LALT(KC_A)")
+         ((C-M-a) "LCA(KC_A)")         
+         ((M a)   "MT(MOD_LALT, KC_A)"
+         (("what you do") "\"what you do\""))))
+    (should (equal (transform-key (car test))
+                   (cadr test)))))
+
+(cl-defstruct layer
+  name pos keys vertical)
+
+(let (layers)
+  (cl-defun define-layer (name pos keys &key (vertical nil))
+    (cl-pushnew
+     (make-layer :name (upcase name)
+                 :pos pos
+                 :keys (transform-keys keys)
+                 :vertical vertical)
+     layers
+     :test (lambda (old new)
+             (string-equal (layer-name old)
+                           (layer-name new)))))
+
+  (defun define-layers (&rest layers)
+    (let ((count 0))
+      (mapc (lambda (layer)
+              (define-layer (car layer) count (cadr keys))
+              (setf count (+ 1 count)))
+            layers)))
+
+  (defun all-layers ()
+    (cl-sort (copy-sequence layers)
+             #'< :key #'layer-pos)))
+
+
+;;;; C Code Generators
 (defun generate-custom-keycodes ()
   (insert "enum custom_keycodes {\n \tEPRM = SAFE_RANGE,\n")
   (cl-dolist (keycode (ss-macro-all-entries))
@@ -407,7 +421,24 @@ macros."
       (insert (format "\t%s,\n" layer)))
     (insert "};\n\n")))
 
-(defconst ergodox-layout-template
+(defun generate-keymaps-matrix ()
+  (let ((layers (all-layers)))
+    (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
+    (insert (cl-reduce (lambda (item1 item2)
+                         (concat item1 ", \n\n" item2))
+                       (mapcar (lambda (layer)
+                            (s-format (if (layer-vertical layer)
+                                          ergodox-layout
+                                        ergodox-layout-horizontal)
+                                      'elt
+                                      (cons (layer-name layer)
+                                            (layer-keys layer))))
+                          layers))))
+  (insert "\n};\n\n\n"))
+
+
+;;;; Layouts
+(defconst ergodox-layout
   "[$0] = LAYOUT_ergodox(
     $1,  $2,  $3,  $4,  $5,  $6,  $7,
     $8,  $9,  $10, $11, $12, $13, $14,
@@ -427,101 +458,60 @@ macros."
     $73,
     $74, $75, $76)")
 
-(defun generate-keymaps-matrix ()
-  (let ((layers (all-layers)))
-    (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
-    (insert (cl-reduce (lambda (item1 item2)
-                         (concat item1 ", \n\n" item2))
-                       (mapcar (lambda (layer)
-                            (s-format ergodox-layout-template
-                                      'elt
-                                      (cons (layer-name layer)
-                                            (layer-keys layer))))
-                          layers))))
-  (insert "\n};\n\n\n"))
+(defconst ergodox-layout-horizontal
+  "[$0] = LAYOUT_ergodox(
+    $1,  $2,  $3,  $4,  $5,  $6,  $7,    $8,  $9,  $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20, $21,   $22, $23, $24, $25, $26, $27, $28,
+    $29, $30, $31, $32, $33, $34,             $35, $36, $37, $38, $39, $40,
+    $41, $42, $43, $44, $45, $46, $47,   $48, $49, $50, $51, $52, $53, $54,
+    $55, $56, $57, $58, $59,                       $60, $61, $62, $63, $64, 
+                             $65, $66,   $67, $68,
+                                  $69,   $70, 
+                        $71, $72, $73,   $74, $75, $76)")
+
 
 (define-layer "base" 0
- '((---)        (---) (---) (---) (---)     (---) (---)
-   (---)        (---)  (w)   (e)   (r)  (t) (---)
-   (---)         (a)  (G t) (M d) (C f) (g)
-   (osm S)       (z)   (x)   (c)   (v)  (b) (---)
-   (tg xwindow) (---) (---) (---) (---)
+ '((---)        (---) (---) (---) (---) (---) (---)    (---) (---)   (---)          (---)       (---) (---) (---)
+   (---)        (---)  (w)   (e)   (r)  (t)   (---)    (---)  (y) (lt numeric u) (lt numeric i)  (o)  (---) (---)
+   (---)         (a)  (G t) (M d) (C f) (g)                   (h)    (C j)       (lt symbols k) (M l)  (p)  (---)
+   (osm S)       (z)   (x)   (c)   (v)  (b)   (---)    (---)  (n)     (m)          (comma)      (dot)  (q)  (osm S)
+   (tg xwindow) (---) (---) (---) (---)                              (---)          (---)       (---) (---) (---)
    
-                                            (---) (---)
-                                                  (M-x)
-           (lt xwindow bspace) (lt xwindow space) (tab)
-   ;; ------------------------------------------------------------------   
-   (---) (---)   (---)         (---)       (---) (---) (---)
-   (---)  (y) (lt numeric u) (lt numeric i)  (o)  (---) (---)
-          (h)    (C j)      (lt symbols k) (M l)  (p)  (---)
-   (---)  (n)     (m)         (comma)      (dot)  (q)  (osm S)
-                 (---)         (---)       (---) (---) (---)
-
-   (---) (---)
-   (C-z)
-   (lt xwindow escape) (lt xwindow enter) (---)))
+                                        (---) (---)    (---) (---)
+                                              (M-x)    (C-z)
+       (lt xwindow bspace) (lt xwindow space) (tab)    (lt xwindow escape) (lt xwindow enter) (---)))
 
 (define-layer "xwindow" 1
-  '(( ) ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( )
-                        ( ) ( )
-                            ( )
-                    ( ) ( ) ( )
- ;; ---------------------------------
-    ( ) ( ) ( )   ( )  ( )   ( )  ( )
-    ( ) ( ) ( )  (G-b) ( )   ( )  ( )
-        ( ) (F4) (F3)  (G-t) (F5) ( )
-    ( ) ( ) ( )  ( )   ( )   ( )  ( )
-            ( )  ( )   ( )   ( )  ( )
-    ( ) ( )
-    ( )
-    ( ) ( ) ( )
-    ))
+  '(( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )   ( )  ( )   ( )  ( )
+    ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  (G-b) ( )   ( )  ( )
+    ( ) ( ) ( ) ( ) ( ) ( )             ( ) (F4) (F3) (G-t)  (F5) ( )
+    ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  ( )   ( )   ( )  ( )
+    ( ) ( ) ( ) ( ) ( )                     ( )  ( )   ( )   ( )  ( )
+                        ( ) ( )     ( ) ( )
+                            ( )     ( )
+                    ( ) ( ) ( )     ( ) ( ) ( )))
 
 
 (define-layer "numeric" 4
-  '(( ) ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) (1) (2) (3) ( ) ( )
-    ( ) (0) (4) (5) (6) ( )
-    ( ) (0) (7) (8) (9) ( ) ( )
-    ( ) ( ) ( ) ( ) ( )
-                        ( ) ( )
-                            ( )
-                    ( ) ( ) ( )
- ;; ---------------------------
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-        ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-            ( ) ( ) ( ) ( ) ( )
-    ( ) ( )
-    ( )
-    ( ) ( ) ( )
-    ))
+  '(( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+    ( ) ( ) (1) (2) (3) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+    ( ) (0) (4) (5) (6) ( )             ( ) ( ) ( ) ( ) ( ) ( )
+    ( ) (0) (7) (8) (9) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+    ( ) ( ) ( ) ( ) ( )                     ( ) ( ) ( ) ( ) ( )
+                        ( ) ( )     ( ) ( )
+                            ( )     ( )
+                    ( ) ( ) ( )     ( ) ( ) ( )))
 
 
 (define-layer "symbols" 6
-  '(( ) ( ) ("[") ("]") ({) (}) ( )
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( )
-                        ( ) ( )
-                            ( )
-                    ( ) ( ) ( )
- ;; ---------------------------
-    ( ) ( ) ( ) ( ) ( ) ( ) (C-x ENT)
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-        ( ) ( ) ( ) ( ) ( ) ( )
-    ( ) ( ) ( ) ( ) ( ) ( ) ( )
-            ( ) ( ) ( ) ( ) ( )
-    ( ) ( )
-    ( )
-    ( ) ( ) ( )
-    ))
+  '(( ) ( ) ("[") ("]") ({) (}) ( )     ( ) ( ) ( ) ( ) ( ) ( ) (C-x ENT)
+    ( ) ( ) ( )   ( )   ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+    ( ) ( ) ( )   ( )   ( ) ( )             ( ) ( ) ( ) ( ) ( ) ( )
+    ( ) ( ) ( )   ( )   ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+    ( ) ( ) ( )   ( )   ( )                     ( ) ( ) ( ) ( ) ( )
+                            ( ) ( )     ( ) ( )
+                                ( )     ( )
+                        ( ) ( ) ( )     ( ) ( ) ( )))
 
 (defconst keymaps-path "~/projects/qmk_firmware/keyboards/ergodox_ez/keymaps")
 (defconst keymap-name "elisp")
