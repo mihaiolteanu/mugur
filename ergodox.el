@@ -1,6 +1,19 @@
-;;; ergodox.el --- Configure and flash the Ergodox keyboard -*- lexical-binding: t -*-
+;;; ergodox.el --- Generate keymaps and config files for qmk keyboards -*- lexical-binding: t -*-
 
 (require 's)
+
+(defgroup mugur ()
+  "qmk keyboard configurator"
+  :group 'tools
+  :prefix "mugur-")
+
+(defcustom qmk-path nil
+  "Path to where you git cloned the qmk firmware source code 
+(https://github.com/qmk/qmk_firmware)"
+  :type '(string :tag "path")
+  :group 'mugur)
+
+(setf qmk-path "~/projects/qmk_firmware")
 
 (defconst supported-keycodes
   '(("Letters and Numbers"
@@ -131,18 +144,20 @@ macros."
 
   (defun gendoc-keycodes ()
     (interactive)
-    (with-current-buffer (get-buffer-create "keycodes.org")
-      (org-mode)
-      (erase-buffer)
-      (dolist (category supported-keycodes)
-        (insert (format "* %s\n\n" (car category)))
-        (let ((max (cl-loop for entry in (cdr category)
-                            maximize (length (keycode-string entry)))))
-          (dolist (entry (cdr category))            
-            (insert (format (concat "\t%-" (number-to-string max)
-                                    "S --> %s\n")
-                            (car entry) (keycode-string entry)))))
-        (insert "\n"))))
+    (let ((b (get-buffer-create "keycodes.org")))
+      (with-current-buffer b
+          (org-mode)
+        (erase-buffer)
+        (dolist (category supported-keycodes)
+          (insert (format "* %s\n\n" (car category)))
+          (let ((max (cl-loop for entry in (cdr category)
+                              maximize (length (keycode-string entry)))))
+            (dolist (entry (cdr category))            
+              (insert (format (concat "\t%-" (number-to-string max)
+                                      "S --> %s\n")
+                              (car entry) (keycode-string entry)))))
+          (insert "\n")))
+      (switch-to-buffer b)))
   
   (ert-deftest keycodes-should-not-error ()
     (dolist (category supported-keycodes)
@@ -256,6 +271,7 @@ macros."
     (should (equal (combo-define (car test))
                    (cadr test)))))
 
+(combo '(left right "whatever"))
 
 ;;;; Layer Switching
 (defun layer-switching-codes ()
@@ -348,7 +364,7 @@ macros."
              (string-equal (layer-name old)
                            (layer-name new)))))
 
-  (defun define-layers (&rest layers)
+  (defun define-config (&rest layers)
     (let ((count 0))
       (mapc (lambda (layer)
               (define-layer (car layer) count (cadr layer))
@@ -361,80 +377,100 @@ macros."
 
 
 ;;;; C Code Generators
-(defun generate-custom-keycodes ()
-  (insert "enum custom_keycodes {\n \tEPRM = SAFE_RANGE,\n")
-  (cl-dolist (keycode (ss-macro-all-entries))
-    (insert (format "\t%s,\n"
-                    (upcase (ss-macro-entry-name keycode)))))
-  (insert "};\n\n"))
+(defun c-custom-keycodes (ss-macros)
+  (with-temp-buffer
+    (insert "enum custom_keycodes {\n\tEPRM = SAFE_RANGE,\n")
+    (cl-dolist (keycode ss-macros)
+      (insert (format "\t%s,\n"
+                      (upcase (ss-macro-entry-name keycode)))))
+    (insert "};\n\n")
+    (buffer-string)))
 
-(defun generate-process-record-user ()
-  (insert "bool process_record_user(uint16_t keycode, keyrecord_t *record) {\n")
-  (insert "\tif (record->event.pressed) {\n")
-  (insert "\t\tswitch (keycode) {\n")
-  (insert "\t\tcase EPRM:\n")
-  (insert "\t\t\teeconfig_init();\n")
-  (insert "\t\t\treturn false;\n")
-  (cl-dolist (keycode (ss-macro-all-entries))
-    (insert (format "\t\tcase %s:\n" (ss-macro-entry-name keycode)))
-    (insert (format "\t\t\tSEND_STRING(%s);\n" (ss-macro-entry-expansion keycode)))
-    (insert "\t\t\treturn false;\n"))
-  (insert "\t\t}\n\t}\n\treturn true;\n}\n\n"))
+(defun c-process-record-user (ss-macros)
+  (with-temp-buffer
+    (insert "bool process_record_user(uint16_t keycode, keyrecord_t *record) {\n")
+    (insert "\tif (record->event.pressed) {\n")
+    (insert "\t\tswitch (keycode) {\n")
+    (insert "\t\tcase EPRM:\n")
+    (insert "\t\t\teeconfig_init();\n")
+    (insert "\t\t\treturn false;\n")
+    (cl-dolist (macro ss-macros)
+      (insert (format "\t\tcase %s:\n" (ss-macro-entry-name macro)))
+      (insert (format "\t\t\tSEND_STRING(%s);\n" (ss-macro-entry-expansion macro)))
+      (insert "\t\t\treturn false;\n"))
+    (insert "\t\t}\n\t}\n\treturn true;\n}\n\n")
+    (buffer-string)))
 
-(defun generate-combo-events-and-array ()
-  (when (combos-all)
+(defun c-combos-combo-events (combos)
+  (with-temp-buffer
     (insert "enum combo_events {\n")
-    (cl-dolist (combo (combos-all))
+    (cl-dolist (combo combos)
       (insert (format "\t%s,\n" (upcase (combo-name combo)))))
     (insert "};\n\n")
-    
-    (cl-dolist (combo (combos-all))
-      (insert (format "const uint16_t PROGMEM %s_combo[] = {%s, COMBO_END};\n"
-                      (combo-name combo) (combo-keys combo))))
+    (buffer-string)))
+
+(defun c-combos-progmem (combos)
+  (with-temp-buffer
+    (cl-dolist (combo combos)
+      (insert
+       (format "const uint16_t PROGMEM %s_combo[] = {%s, COMBO_END};\n"
+               (combo-name combo) (combo-keys combo))))
     (insert "\n")
-    
+    (buffer-string)))
+
+(defun c-combos-key-combos (combos)
+  (with-temp-buffer
     (insert "combo_t key_combos[COMBO_COUNT] = {\n")
-    (cl-dolist (combo (combos-all))
+    (cl-dolist (combo combos)
       (insert (format "\t[%s] = COMBO_ACTION(%s_combo),\n"
                       (upcase (combo-name combo))
                       (combo-name combo))))
     (insert "};\n\n")
+    (buffer-string)))
 
+(defun c-combos-process-combo-event (combos)
+  (with-temp-buffer
     (insert "void process_combo_event(uint8_t combo_index, bool pressed) {\n")
     (insert "\tswitch(combo_index) {\n")
-    (cl-dolist (combo (combos-all))
+    (cl-dolist (combo combos)
       (insert (format "\tcase %s:\n" (upcase (combo-name combo))))
       (insert "\t\tif (pressed) {\n")
       (insert (format "\t\t\tSEND_STRING%s;\n" (combo-expansion combo)))
       (insert "\t\t}\n")
-      (insert "\t\tbreak;\n")
-      )
+      (insert "\t\tbreak;\n"))
     (insert "\t}\n")
-    (insert "}\n")))
+    (insert "}\n\n")
+    (buffer-string)))
 
-(defun generate-layer-codes-enum ()
-  (let ((layers (mapcar #'layer-name (all-layers))))
-    (insert "enum layer_codes {\n")
-    (insert (format "\t%s = 0,\n" (car layers)))
-    (setf layers (cdr layers))
-    (cl-dolist (layer layers)
-      (insert (format "\t%s,\n" layer)))
-    (insert "};\n\n")))
+(defun c-layer-codes (layers)
+  (with-temp-buffer
+    (let ((layers (mapcar #'layer-name layers)))
+      (insert "enum layer_codes {\n")
+      (insert (format "\t%s = 0,\n" (car layers)))
+      (setf layers (cdr layers))
+      (cl-dolist (layer layers)
+        (insert (format "\t%s,\n" layer)))
+      (insert "};\n\n"))
+    (buffer-string)))
 
-(defun generate-keymaps-matrix ()
-  (let ((layers (all-layers)))
-    (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
-    (insert (cl-reduce (lambda (item1 item2)
-                         (concat item1 ", \n\n" item2))
-                       (mapcar (lambda (layer)
-                            (s-format (if (layer-vertical layer)
-                                          ergodox-layout
-                                        ergodox-layout-horizontal)
-                                      'elt
-                                      (cons (layer-name layer)
-                                            (layer-keys layer))))
-                          layers))))
-  (insert "\n};\n\n\n"))
+(defun c-keymaps (layers)
+  (with-temp-buffer
+    (let ((layers layers))
+      (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
+      (insert
+       (cl-reduce
+        (lambda (item1 item2)
+          (concat item1 ", \n\n" item2))
+        (mapcar (lambda (layer)
+             (s-format (if (layer-vertical layer)
+                           ergodox-layout
+                         ergodox-layout-horizontal)
+                       'elt
+                       (cons (layer-name layer)
+                             (layer-keys layer))))
+           layers))))
+    (insert "\n};\n\n\n")
+    (buffer-string)))
 
 
 ;;;; Layouts
@@ -470,7 +506,13 @@ macros."
                         $71, $72, $73,   $74, $75, $76)")
 
 
-(define-layers
+(define-config
+  ;; :name "my base config"
+  ;; :shortcuts
+  ;; '((mybspace (lt xwindow bspace))
+  ;;   (em-split (C-x 3)))
+  
+  ;; :layers
   '("base"
     ((---)        (---) (---) (---) (---) (---) (---)    (---) (---)   (---)          (---)       (---) (---) (---)
      (---)        (---)  (w)   (e)   (r)  (t)   (---)    (---)  (y) (lt numeric u) (lt numeric i)  (o)  (---) (---)
@@ -513,37 +555,30 @@ macros."
                          ( ) ( ) ( )     ( ) ( ) ( ))))
 
 
-(defconst keymaps-path "~/projects/qmk_firmware/keyboards/ergodox_ez/keymaps")
-(defconst keymap-name "elisp")
-
-(defconst keymap-keymap (concat (file-name-as-directory keymaps-path)
-                                  "elisp/keymap.c"))
-(defconst keymap-config (concat (file-name-as-directory keymaps-path)
-                                  "elisp/config.h"))
-(defconst keymap-rules (concat (file-name-as-directory keymaps-path)
-                                  "elisp/rules.mk"))
+(defun c-file-path (file keymap keyboard)
+  (concat (file-name-as-directory qmk-path)
+          (file-name-as-directory (format "keyboards/%s/keymaps" keyboard))
+          (file-name-as-directory keymap)
+          file))
 
 (defun generate-keymap ()
-  (with-temp-file keymap-keymap
-    (insert "#include QMK_KEYBOARD_H
-#include \"version.h\"
-
-#define ___ KC_TRNS
-#define _X_ KC_NO
-
-")
-    (generate-layer-codes-enum)
-    (generate-custom-keycodes)
-    (generate-combo-events-and-array)
-    (generate-keymaps-matrix)
-    (generate-process-record-user)))
-
-(combo '(left right ENT))
-(combo '(a q f (x "whatever")))
-(combo '(a x C-x))
+  (with-temp-file (c-file-path "keymap.c" "elisp" "ergodox_ez")
+    (insert "#include QMK_KEYBOARD_H\n")
+    (insert "#include \"version.h\"\n\n")
+    (insert "#define ___ KC_TRNS\n")
+    (insert "#define _X_ KC_NO\n\n")
+    
+    (insert (c-layer-codes (all-layers)))
+    (insert (c-custom-keycodes (ss-macro-all-entries)))
+    (insert (c-combos-combo-events (combos-all)))
+    (insert (c-combos-progmem (combos-all)))
+    (insert (c-combos-key-combos (combos-all)))
+    (insert (c-combos-process-combo-event (combos-all)))    
+    (insert (c-keymaps (all-layers)))
+    (insert (c-process-record-user (ss-macro-all-entries)))))
 
 (defun generate-config ()
-  (with-temp-file keymap-config
+  (with-temp-file (c-file-path "config.h" "elisp" "ergodox_ez")
     (insert "#undef TAPPING_TERM
 #define TAPPING_TERM 180
 #define COMBO_TERM 100
@@ -555,7 +590,7 @@ macros."
                       (length it))))))
 
 (defun generate-rules ()
-  (with-temp-file keymap-rules
+  (with-temp-file (c-file-path "rules.mk" "elisp" "ergodox_ez")
     (insert "TAP_DANCE_ENABLE = no
 FORCE_NKRO = yes
 RGBLIGHT_ENABLE = no
