@@ -232,34 +232,22 @@ macros."
 (cl-defstruct combo
   name keys expansion)
 
-(let ((count 1)
-      (combos nil))
-  (defun combo-define (combo)
-    (let* ((keycodes (mapcar #'keycode (butlast combo)))
-           (last (last combo))
-           (ss (ss-macro-transform-keys
-                (if (listp (car last))
-                    (car last)
-                  last))))
-      (list keycodes ss)))
+(defun combo-define (combo)
+  (let* ((keycodes (mapcar #'keycode (butlast combo)))
+         (last (last combo))
+         (ss (ss-macro-transform-keys
+              (if (listp (car last))
+                  (car last)
+                last))))
+    (list keycodes ss)))
 
-  (defun combo (combo)
-    (let ((c (combo-define combo))
-          (cur-count (length combos)))
-      (cl-pushnew
-       (make-combo :name (format "COMBO_%s" count)
-                   :keys (cl-reduce (lambda (item1 item2)
-                                      (concat item1 ", " item2))
-                                    (car (butlast c)))
-                   :expansion (car (last c)))
-       combos
-       :test #'equal
-       :key  #'combo-expansion)
-      (when (> (length combos) cur-count)
-        (setf count (+ 1 count)))))
-
-  (defun combos-all ()
-    (reverse combos)))
+(defun combo (combo name)
+  (let ((c (combo-define combo)))
+    (make-combo :name name
+                :keys (cl-reduce (lambda (item1 item2)
+                                   (concat item1 ", " item2))
+                                 (car (butlast c)))
+                :expansion (car (last c)))))
 
 (ert-deftest test-combo-define ()
   (cl-dolist (test
@@ -270,8 +258,6 @@ macros."
          ((a x (C-x "whatever")) (("KC_A" "KC_X") ("SS_LCTL(\"x\")" "\"whatever\"")))))
     (should (equal (combo-define (car test))
                    (cadr test)))))
-
-(combo '(left right "whatever"))
 
 ;;;; Layer Switching
 (defun layer-switching-codes ()
@@ -305,7 +291,7 @@ macros."
     (org-mode)
     (local-set-key (kbd "q") 'kill-current-buffer)
     (insert "* Layer Switching Codes\n\n")
-    (mapcar (lambda (code)
+    (mapc (lambda (code)
          (insert (format "%-15s - %s\n" (car code) (cadr code))))
        (layer-switching-codes))
     (switch-to-buffer (get-buffer-create "layer-switching-codes"))))
@@ -350,31 +336,73 @@ macros."
                    (cadr test)))))
 
 (cl-defstruct layer
-  name pos keys vertical)
+  name
+  index
+  keys
+  leds
+  orientation)
 
-(let (layers)
-  (cl-defun define-layer (name pos keys &key (vertical nil))
+(cl-defstruct keymap
+  name
+  keyboard
+  layers
+  combos
+  macros)
+
+(cl-defun new-layer (name index keys &key (leds nil) (orientation 'horizontal))
+  (make-layer :name name
+              :index index
+              :keys keys
+              :leds leds
+              :orientation orientation))
+
+(cl-defun new-keymap (&key name keyboard layers (combos nil) (macros nil))
+  (make-keymap :name name
+               :keyboard keyboard
+               :layers layers
+               :combos combos
+               :macros macros))
+
+(let (keymaps)
+  (cl-defun mugur-keymap (name keyboard &key
+                               (layers nil)
+                               (combos nil)
+                               (macros nil)
+                               (shortcuts nil))
+
     (cl-pushnew
-     (make-layer :name (upcase name)
-                 :pos pos
-                 :keys (transform-keys keys)
-                 :vertical vertical)
-     layers
-     :test (lambda (old new)
-             (string-equal (layer-name old)
-                           (layer-name new)))))
+     (new-keymap
+      :name name
+      :keyboard keyboard
+      
+      :layers
+      (let ((index 0))
+        (mapcar (lambda (layer)
+             (let* ((name (car layer))
+                    (leds (if (= (length (cadr layer)) 3)
+                              (cadr layer)
+                            nil))
+                    (keys (if leds
+                              (caddr layer)
+                            ;; leds entry not given
+                            (cadr layer))))
+               (setf index (+ 1 index))
+               (new-layer (upcase name) index
+                          (transform-keys keys)
+                          :leds leds)))
+           layers))
+      
+      :combos
+      (let ((index 0))
+        (mapcar (lambda (combo)
+             (setf index (+ 1 index))
+             (combo combo (format "COMBO_%s" index)))
+           combos))   
+      )
+     keymaps))
 
-  (defun define-config (&rest layers)
-    (let ((count 0))
-      (mapc (lambda (layer)
-              (define-layer (car layer) count (cadr layer))
-              (setf count (+ 1 count)))
-            layers)))
-
-  (defun all-layers ()
-    (cl-sort (copy-sequence layers)
-             #'< :key #'layer-pos)))
-
+  (defun keymaps-all ()
+    keymaps))
 
 ;;;; C Code Generators
 (defun c-custom-keycodes (ss-macros)
@@ -454,21 +482,21 @@ macros."
     (buffer-string)))
 
 (defun c-keymaps (layers)
-  (with-temp-buffer
-    (let ((layers layers))
-      (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
-      (insert
-       (cl-reduce
-        (lambda (item1 item2)
-          (concat item1 ", \n\n" item2))
-        (mapcar (lambda (layer)
-             (s-format (if (layer-vertical layer)
-                           ergodox-layout
-                         ergodox-layout-horizontal)
-                       'elt
-                       (cons (layer-name layer)
-                             (layer-keys layer))))
-           layers))))
+  (with-temp-buffer  
+    (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
+    (insert
+     (cl-reduce
+      (lambda (item1 item2)
+        (concat item1 ", \n\n" item2))
+      (mapcar (lambda (layer)
+           (s-format (if (equal (layer-orientation layer)
+                                'vertical)
+                         ergodox-layout
+                       ergodox-layout-horizontal)
+                     'elt
+                     (cons (layer-name layer)
+                           (layer-keys layer))))
+         layers)))
     (insert "\n};\n\n\n")
     (buffer-string)))
 
@@ -506,14 +534,15 @@ macros."
                         $71, $72, $73,   $74, $75, $76)")
 
 
-(define-config
-  ;; :name "my base config"
+(mugur-keymap "elisp" "ergodox_ez"
+  :combos '((left right escape)
+            (x y (C-x "now")))
   ;; :shortcuts
   ;; '((mybspace (lt xwindow bspace))
   ;;   (em-split (C-x 3)))
   
-  ;; :layers
-  '("base"
+  :layers
+  '(("base"
     ((---)        (---) (---) (---) (---) (---) (---)    (---) (---)   (---)          (---)       (---) (---) (---)
      (---)        (---)  (w)   (e)   (r)  (t)   (---)    (---)  (y) (lt numeric u) (lt numeric i)  (o)  (---) (---)
      (---)         (a)  (G t) (M d) (C f) (g)                   (h)    (C j)       (lt symbols k) (M l)  (p)  (---)
@@ -524,7 +553,7 @@ macros."
                                                 (M-x)    (C-z)
          (lt xwindow bspace) (lt xwindow space) (tab)    (lt xwindow escape) (lt xwindow enter) (---)))
 
-  '("xwindow"
+  ("xwindow" (1 0 0)
     (( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )   ( )  ( )   ( )  ( )
      ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  (G-b) ( )   ( )  ( )
      ( ) ( ) ( ) ( ) ( ) ( )             ( ) (F4) (F3) (G-t)  (F5) ( )
@@ -534,7 +563,7 @@ macros."
                              ( )     ( )
                      ( ) ( ) ( )     ( ) ( ) ( )))
   
-  '("numeric"
+  ("numeric"
     (( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
      ( ) ( ) (1) (2) (3) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
      ( ) (0) (4) (5) (6) ( )             ( ) ( ) ( ) ( ) ( ) ( )
@@ -544,7 +573,7 @@ macros."
                              ( )     ( )
                      ( ) ( ) ( )     ( ) ( ) ( )))
 
-  '("symbols"
+  ("symbols"
     (( ) ( ) ("[") ("]") ({) (}) ( )     ( ) ( ) ( ) ( ) ( ) ( ) (C-x ENT)
      ( ) ( ) ( )   ( )   ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
      ( ) ( ) ( )   ( )   ( ) ( )             ( ) ( ) ( ) ( ) ( ) ( )
@@ -552,7 +581,7 @@ macros."
      ( ) ( ) ( )   ( )   ( )                     ( ) ( ) ( ) ( ) ( )
                              ( ) ( )     ( ) ( )
                                  ( )     ( )
-                         ( ) ( ) ( )     ( ) ( ) ( ))))
+                         ( ) ( ) ( )     ( ) ( ) ( )))))
 
 
 (defun c-file-path (file keymap keyboard)
@@ -561,50 +590,59 @@ macros."
           (file-name-as-directory keymap)
           file))
 
-(defun generate-keymap ()
-  (with-temp-file (c-file-path "keymap.c" "elisp" "ergodox_ez")
+(defun generate-keymap-file (keymap)
+  (with-temp-file (c-file-path "keymap.c"
+                               (keymap-name keymap)
+                               (keymap-keyboard keymap))
     (insert "#include QMK_KEYBOARD_H\n")
     (insert "#include \"version.h\"\n\n")
     (insert "#define ___ KC_TRNS\n")
     (insert "#define _X_ KC_NO\n\n")
     
-    (insert (c-layer-codes (all-layers)))
-    (insert (c-custom-keycodes (ss-macro-all-entries)))
-    (insert (c-combos-combo-events (combos-all)))
-    (insert (c-combos-progmem (combos-all)))
-    (insert (c-combos-key-combos (combos-all)))
-    (insert (c-combos-process-combo-event (combos-all)))    
-    (insert (c-keymaps (all-layers)))
-    (insert (c-process-record-user (ss-macro-all-entries)))))
+    (insert (c-layer-codes         (keymap-layers keymap)))
+;;    (insert (c-custom-keycodes     (ss-macro-all-entries)))
+    (insert (c-combos-combo-events (keymap-combos keymap)))
+    (insert (c-combos-progmem      (keymap-combos keymap)))
+    (insert (c-combos-key-combos   (keymap-combos keymap)))
+    (insert (c-combos-process-combo-event (keymap-combos keymap)))    
+    (insert (c-keymaps             (keymap-layers keymap)))
+;;    (insert (c-process-record-user (ss-macro-all-entries)))
+    ))
 
-(defun generate-config ()
-  (with-temp-file (c-file-path "config.h" "elisp" "ergodox_ez")
+(defun generate-config-file (keymap)
+  (with-temp-file (c-file-path "config.h"
+                               (keymap-name keymap)
+                               (keymap-keyboard keymap))
     (insert "#undef TAPPING_TERM
 #define TAPPING_TERM 180
 #define COMBO_TERM 100
 #define FORCE_NKRO
 #undef RGBLIGHT_ANIMATIONS
 ")
-    (awhen (combos-all)
+    (awhen (keymap-combos keymap)
       (insert (format "#define COMBO_COUNT %s\n"
                       (length it))))))
 
-(defun generate-rules ()
-  (with-temp-file (c-file-path "rules.mk" "elisp" "ergodox_ez")
+(defun generate-rules-file (keymap)
+  (with-temp-file (c-file-path "rules.mk"
+                               (keymap-name keymap)
+                               (keymap-keyboard keymap))
     (insert "TAP_DANCE_ENABLE = no
 FORCE_NKRO = yes
 RGBLIGHT_ENABLE = no
 ")
-    (awhen (combos-all)
+    (awhen (keymap-combos keymap)
       (insert (format "COMBO_ENABLE = %s\n"
                       (if it "yes" "no"))))))
 
-(defun generate-all ()
-  (generate-keymap)
-  (generate-config)
-  (generate-rules))
+(defun generate-all (keymap)
+  (generate-keymap-file keymap)
+  (generate-config-file keymap)
+  (generate-rules-file keymap))
 
-(generate-all)
+
+(generate-keymap-file (car (keymaps-all)))
+(generate-all (car (keymaps-all)))
 
 ;; (define-layer "template"
 ;;   '(( ) ( ) ( ) ( ) ( ) ( ) ( )
