@@ -190,32 +190,32 @@ macros."
 (cl-defstruct ss-macro-entry
   name expansion)
 
-(let ((count 1)
-      (ss-macro-entries nil))
-  (defun ss-macro-transform-keys (keys)
-    (mapcar (lambda (key)
-         (key-or-sequence key :ss t))
-       keys))
+(defun ss-macro-transform-keys (keys)
+  (mapcar (lambda (key)
+       (key-or-sequence key :ss t))
+     keys))
 
-  (defun ss-macro-define (entry)
-    (cl-reduce
-     (lambda (item1 item2)
-       (concat item1 " " item2))
-     (ss-macro-transform-keys entry)))
-  
-  (defun ss-macro (entry)
-    (cl-pushnew
-     (make-ss-macro-entry
-      :name (format "SS_MACRO_%s" count)
-      :expansion (ss-macro-define entry))
-     ss-macro-entries
-     :test #'string-equal
-     :key  #'ss-macro-entry-expansion)
-    (setf count (+ count 1))
-    (car ss-macro-entries))
+(defun ss-macro-define (entry)
+  (cl-reduce
+   (lambda (item1 item2)
+     (concat item1 " " item2))
+   (ss-macro-transform-keys entry)))
 
-  (defun ss-macro-all-entries ()
-    ss-macro-entries))
+(defun ss-macro (entry)
+  (let ((expansion (ss-macro-define entry)))
+    (make-ss-macro-entry
+     :name (format "SS_MACRO_%s" (upcase (md5 expansion)))
+     :expansion (ss-macro-define entry))))
+
+(defun extract-macros (keys)
+  (remove
+   nil
+   (mapcar (lambda (key)
+        (let ((tr (transform-key key)))
+          (if (s-contains-p "SS_MACRO_" tr)
+              (ss-macro key)
+            nil)))
+      keys)))
 
 (ert-deftest test-ss-macro ()
   (cl-dolist (test
@@ -316,9 +316,7 @@ macros."
     ((and `(,action ,layer ,key-or-mod)
           (guard (layer-switch-p action)))
      (layer-switch action layer key-or-mod))
-    (_ (let ((macro-entry (ss-macro key)))
-         (when (ss-macro-entry-p macro-entry)
-           (ss-macro-entry-name macro-entry))))))
+    (_ (ss-macro-entry-name (ss-macro key)))))
 
 (defun transform-keys (keys)
   (mapcar #'transform-key keys))
@@ -366,40 +364,48 @@ macros."
 (let (keymaps)
   (cl-defun mugur-keymap (name keyboard &key
                                (layers nil)
-                               (combos nil)
-                               (macros nil)
+                               (combos nil)                               
                                (shortcuts nil))
 
-    (cl-pushnew
-     (new-keymap
-      :name name
-      :keyboard keyboard
-      
-      :layers
-      (let ((index 0))
-        (mapcar (lambda (layer)
-             (let* ((name (car layer))
-                    (leds (if (= (length (cadr layer)) 3)
-                              (cadr layer)
-                            nil))
-                    (keys (if leds
-                              (caddr layer)
-                            ;; leds entry not given
-                            (cadr layer))))
+    (let ((macros
+           (mapcar #'car
+              (remove
+               nil
+               (mapcar (lambda (layer)                 
+                    (extract-macros (cadr layer)))
+                  layers)))))      
+      (cl-pushnew
+       (new-keymap
+        :name name
+        :keyboard keyboard
+        
+        :layers
+        (let ((index 0))
+          (mapcar (lambda (layer)
+               (let* ((name (car layer))
+                      (leds (if (= (length (cadr layer)) 3)
+                                (cadr layer)
+                              nil))
+                      (keys (if leds
+                                (caddr layer)
+                              ;; leds entry not given
+                              (cadr layer))))
+                 (setf index (+ 1 index))
+                 (new-layer (upcase name) index
+                            (transform-keys keys)
+                            :leds leds)))
+             layers))
+        
+        :combos
+        (let ((index 0))
+          (mapcar (lambda (combo)
                (setf index (+ 1 index))
-               (new-layer (upcase name) index
-                          (transform-keys keys)
-                          :leds leds)))
-           layers))
-      
-      :combos
-      (let ((index 0))
-        (mapcar (lambda (combo)
-             (setf index (+ 1 index))
-             (combo combo (format "COMBO_%s" index)))
-           combos))   
-      )
-     keymaps))
+               (combo combo (format "COMBO_%s" index)))
+             combos))
+
+        :macros macros        
+        )
+       keymaps)))
 
   (defun keymaps-all ()
     keymaps))
@@ -553,8 +559,8 @@ macros."
                                                 (M-x)    (C-z)
          (lt xwindow bspace) (lt xwindow space) (tab)    (lt xwindow escape) (lt xwindow enter) (---)))
 
-  ("xwindow" (1 0 0)
-    (( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )   ( )  ( )   ( )  ( )
+  ("xwindow"
+    (( ) ( ) ( ) ( ) ( ) ( ) ( )     (a b c) ( ) ( )   ( )  ( )   ( )  ( )
      ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  (G-b) ( )   ( )  ( )
      ( ) ( ) ( ) ( ) ( ) ( )             ( ) (F4) (F3) (G-t)  (F5) ( )
      ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  ( )   ( )   ( )  ( )
@@ -600,13 +606,13 @@ macros."
     (insert "#define _X_ KC_NO\n\n")
     
     (insert (c-layer-codes         (keymap-layers keymap)))
-;;    (insert (c-custom-keycodes     (ss-macro-all-entries)))
+    (insert (c-custom-keycodes     (keymap-macros keymap)))
     (insert (c-combos-combo-events (keymap-combos keymap)))
     (insert (c-combos-progmem      (keymap-combos keymap)))
     (insert (c-combos-key-combos   (keymap-combos keymap)))
     (insert (c-combos-process-combo-event (keymap-combos keymap)))    
     (insert (c-keymaps             (keymap-layers keymap)))
-;;    (insert (c-process-record-user (ss-macro-all-entries)))
+    (insert (c-process-record-user (keymap-macros keymap)))
     ))
 
 (defun generate-config-file (keymap)
