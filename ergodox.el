@@ -362,18 +362,41 @@ macros."
                :macros macros))
 
 (let (keymaps)
+  (defun leds (layer)
+    (if (= (length (cadr layer)) 3)
+        (cadr layer)
+      nil))
+
+  (defun keys (layer)
+    (if (= (length (cadr layer)) 3)
+        (caddr layer)
+      (cadr layer)))
+
+  (cadr (cl-find 'em-split '((mybspace (lt xwindow bspace))
+                          (em-split (C-x 3)))
+              :key #'car))
+
+  (defun replace-custom-keys (custom-keys keys)
+    (let ((names (mapcar #'car custom-keys)))
+      (print names)
+      (mapcar (lambda (key)
+           (if (member (car key) names)
+               (cadr (cl-find (car key) custom-keys :key #'car))
+             key))
+         keys)))
+  
   (cl-defun mugur-keymap (name keyboard &key
                                (layers nil)
                                (combos nil)                               
-                               (shortcuts nil))
+                               (custom-keys nil))
 
-    (let ((macros
-           (mapcar #'car
-              (remove
-               nil
-               (mapcar (lambda (layer)                 
-                    (extract-macros (cadr layer)))
-                  layers)))))      
+    (let* ((macros
+            (mapcar #'car (remove nil
+                    (mapcar (lambda (layer)
+                         (extract-macros
+                          (replace-custom-keys
+                           custom-keys (keys layer))))
+                       layers)))))      
       (cl-pushnew
        (new-keymap
         :name name
@@ -382,17 +405,13 @@ macros."
         :layers
         (let ((index 0))
           (mapcar (lambda (layer)
-               (let* ((name (car layer))
-                      (leds (if (= (length (cadr layer)) 3)
-                                (cadr layer)
-                              nil))
-                      (keys (if leds
-                                (caddr layer)
-                              ;; leds entry not given
-                              (cadr layer))))
+               (let ((name (car layer))
+                     (leds (leds layer))
+                     (keys (keys layer)))
                  (setf index (+ 1 index))
                  (new-layer (upcase name) index
-                            (transform-keys keys)
+                            (transform-keys
+                             (replace-custom-keys custom-keys keys))
                             :leds leds)))
              layers))
         
@@ -543,9 +562,9 @@ macros."
 (mugur-keymap "elisp" "ergodox_ez"
   :combos '((left right escape)
             (x y (C-x "now")))
-  ;; :shortcuts
-  ;; '((mybspace (lt xwindow bspace))
-  ;;   (em-split (C-x 3)))
+  
+  :custom-keys '((mybspace (lt xwindow bspace))
+                 (em-split (C-x 3)))
   
   :layers
   '(("base"
@@ -557,10 +576,10 @@ macros."
      
                                           (---) (---)    (---) (---)
                                                 (M-x)    (C-z)
-         (lt xwindow bspace) (lt xwindow space) (tab)    (lt xwindow escape) (lt xwindow enter) (---)))
+                  (mybspace) (lt xwindow space) (tab)    (lt xwindow escape) (lt xwindow enter) (---)))
 
-  ("xwindow"
-    (( ) ( ) ( ) ( ) ( ) ( ) ( )     (a b c) ( ) ( )   ( )  ( )   ( )  ( )
+  ("xwindow" (0 1 0)
+    ((em-split) ( ) ( ) ( ) ( ) ( ) ( )     (a b c) ( ) ( )   ( )  ( )   ( )  ( )
      ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  (G-b) ( )   ( )  ( )
      ( ) ( ) ( ) ( ) ( ) ( )             ( ) (F4) (F3) (G-t)  (F5) ( )
      ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  ( )   ( )   ( )  ( )
