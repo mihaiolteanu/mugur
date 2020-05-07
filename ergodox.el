@@ -208,14 +208,19 @@ macros."
      :expansion (ss-macro-define entry))))
 
 (defun extract-macros (keys)
-  (remove
-   nil
-   (mapcar (lambda (key)
-        (let ((tr (transform-key key)))
-          (if (s-contains-p "SS_MACRO_" tr)
-              (ss-macro key)
-            nil)))
-      keys)))
+  (cl-remove-duplicates
+   (remove
+    nil
+    (mapcar (lambda (key)
+         (let ((tr (transform-key key)))
+           (if (s-contains-p "SS_MACRO_" tr)
+               (ss-macro key)
+             nil)))
+       keys))
+   :key #'ss-macro-entry-name
+   :test #'string-equal))
+
+(extract-macros '((a b c) (a b c)))
 
 (ert-deftest test-ss-macro ()
   (cl-dolist (test
@@ -257,6 +262,61 @@ macros."
          ((a x C-x) (("KC_A" "KC_X") ("SS_LCTL(\"x\")")))
          ((a x (C-x "whatever")) (("KC_A" "KC_X") ("SS_LCTL(\"x\")" "\"whatever\"")))))
     (should (equal (combo-define (car test))
+                   (cadr test)))))
+
+
+;; Tap Dance
+(cl-defstruct tapdance
+  name key-name key1 key2)
+
+(defun tapdance-pp (key1 key2)
+  (and (and key1 key2)
+       (and (not (modifier-key-p key1))
+            (keycode key1))
+       (and (not (modifier-key-p key2))
+            (or (keycode key2)
+                (symbolp key2)))
+       t))
+
+(defun tapdance (keys)
+  (when (= (length keys) 2)
+    (let ((key1 (car keys))
+          (key2 (cadr keys)))
+      (when (tapdance-pp key1 key2)
+        (make-tapdance
+         :name (format "TD_%s_%s"
+                       (keycode-raw key1)
+                       (or (keycode-raw key2)
+                           (upcase (symbol-name key2))))
+         :key-name (format "TD(TD_%s_%s)"
+                           (keycode-raw key1)
+                           (or (keycode-raw key2)
+                               (upcase (symbol-name key2)))) 
+         :key1 (keycode key1)
+         :key2 (or (keycode key2)
+                   (upcase (symbol-name key2))))))))
+
+(defun tapdance-extract (keys)
+  (cl-remove-duplicates
+   (remove nil
+           (mapcar (lambda (key)
+                (aif (tapdance key)
+                    it
+                  nil))
+              keys))
+   :key #'tapdance-key-name
+   :test #'string-equal))
+
+(ert-deftest test-tapdance-p ()
+  (cl-dolist (test
+       '(((x y) "TD_X_Y")
+         ((x emacs) "TD_X_EMACS")
+         ((x "emacs") nil)
+         ((C x) nil)
+         ((C M) nil)))
+    (should (equal (aif (tapdance (car test))
+                       (tapdance-name it)
+                     nil)
                    (cadr test)))))
 
 ;;;; Layer Switching
@@ -308,6 +368,9 @@ macros."
     ((and `(,modifier ,key)
           (guard (modifier-key-p modifier)))
      (modtap modifier key))
+    ((and `(,key1 ,key2)
+          (guard (tapdance key)))
+     (tapdance-key-name (tapdance key)))
     (`(osm ,mod) (one-shot-mod mod))
     (`(osl ,layer) (one-shot-layer layer))
     ((and `(,action ,layer)
@@ -327,9 +390,10 @@ macros."
          ((c)     "KC_C")
          ((C)     "LCTL")
          ((M-a)   "LALT(KC_A)")
-         ((C-M-a) "LCA(KC_A)")         
-         ((M a)   "MT(MOD_LALT, KC_A)"
-         (("what you do") "\"what you do\""))))
+         ((C-M-a) "LCA(KC_A)")
+         ((x y)   "TD_X_Y")
+         (("what you do") "SS_MACRO_F20F55CF099E6BE80B9D823C1C609006")
+         ((M a)   "MT(MOD_LALT, KC_A)")))
     (should (equal (transform-key (car test))
                    (cadr test)))))
 
@@ -345,7 +409,8 @@ macros."
   keyboard
   layers
   combos
-  macros)
+  macros
+  tapdances)
 
 (cl-defun new-layer (name index keys &key (leds nil) (orientation 'horizontal))
   (make-layer :name name
@@ -354,12 +419,14 @@ macros."
               :leds leds
               :orientation orientation))
 
-(cl-defun new-keymap (&key name keyboard layers (combos nil) (macros nil))
+(cl-defun new-keymap (&key name keyboard layers
+                           (combos nil) (macros nil) (tapdances nil))
   (make-keymap :name name
                :keyboard keyboard
                :layers layers
                :combos combos
-               :macros macros))
+               :macros macros
+               :tapdances tapdances))
 
 (let (keymaps)
   (defun leds (layer)
@@ -387,17 +454,10 @@ macros."
   
   (cl-defun mugur-keymap (name keyboard &key
                                (layers nil)
-                               (combos nil)                               
+                               (combos nil)       
                                (custom-keys nil))
 
-    (let* ((macros
-            (mapcar #'car (remove nil
-                    (mapcar (lambda (layer)
-                         (extract-macros
-                          (replace-custom-keys
-                           custom-keys (keys layer))))
-                       layers)))))      
-      (cl-pushnew
+    (cl-pushnew
        (new-keymap
         :name name
         :keyboard keyboard
@@ -422,9 +482,28 @@ macros."
                (combo combo (format "COMBO_%s" index)))
              combos))
 
-        :macros macros        
-        )
-       keymaps)))
+        :macros
+        (cl-remove-duplicates
+         (apply #'append
+                (mapcar (lambda (layer)
+                     (extract-macros
+                      (replace-custom-keys
+                       custom-keys (keys layer))))
+                   layers))
+         :key #'ss-macro-entry-name
+         :test #'string-equal)
+
+        :tapdances
+        (cl-remove-duplicates
+         (apply #'append
+                (mapcar (lambda (layer)
+                     (tapdance-extract
+                      (replace-custom-keys
+                       custom-keys (keys layer))))
+                   layers))
+         :key #'tapdance-name
+         :test #'string-equal))
+       keymaps))
 
   (defun keymaps-all ()
     keymaps))
@@ -453,6 +532,59 @@ macros."
       (insert "\t\t\treturn false;\n"))
     (insert "\t\t}\n\t}\n\treturn true;\n}\n\n")
     (buffer-string)))
+
+(defun c-tapdance-enum (tapdances)
+  (with-temp-buffer
+    (insert "enum {\n")
+    (cl-dolist (tapdance tapdances)
+      (insert (format "\t%s,\n" (tapdance-name tapdance))))
+    (insert "};\n\n")
+    (buffer-string)))
+
+(defun c-tapdance-actions (tapdances)
+  (with-temp-buffer
+    (insert "qk_tap_dance_action_t tap_dance_actions[] = {\n")
+    (cl-dolist (tapdance tapdances)
+      (insert
+       (if (s-contains-p "KC_" (tapdance-key2 tapdance))
+           (format "\t[%s] = ACTION_TAP_DANCE_DOUBLE(%s, %s),\n"
+                      (tapdance-name tapdance)
+                      (tapdance-key1 tapdance)
+                      (tapdance-key2 tapdance))
+         ;; This is a layer, not a key
+         (format "\t[%s] = ACTION_TAP_DANCE_LAYER_TOGGLE(%s, %s),\n"
+                      (tapdance-name tapdance)
+                      (tapdance-key1 tapdance)
+                      (tapdance-key2 tapdance)))))
+    (insert "};\n\n")
+    (buffer-string)))
+
+(ert-deftest test-tapdance-c ()
+  (let ((tapdances
+         (mapcar #'tapdance
+            '((x y)
+              (a b)
+              (a emacs_layer)))))
+    (should
+     (string-equal
+      (c-tapdance-enum mytapdances)
+      "enumm {
+	TD_X_Y,
+	TD_A_B,
+	TD_A_EMACS_LAYER,
+};
+
+"))
+    (should
+     (string-equal
+      (c-tapdance-actions mytapdances)
+      "qk_tap_dance_action_t tap_dance_actions[] = {
+	[TD_X_Y] = ACTION_TAP_DANCE_DOUBLE(KC_X, KC_Y),
+	[TD_A_B] = ACTION_TAP_DANCE_DOUBLE(KC_A, KC_B),
+	[TD_A_EMACS_LAYER] = ACTION_TAP_DANCE_LAYER_TOGGLE(KC_A, EMACS_LAYER),
+};
+
+"))))
 
 (defun c-combos-combo-events (combos)
   (with-temp-buffer
@@ -558,7 +690,7 @@ macros."
                                   $69,   $70, 
                         $71, $72, $73,   $74, $75, $76)")
 
-
+(tapdance '(a emacs))
 (mugur-keymap "elisp" "ergodox_ez"
   :combos '((left right escape)
             (x y (C-x "now")))
@@ -567,29 +699,18 @@ macros."
                  (em-split (C-x 3)))
   
   :layers
-  '(("base"
-    ((---)        (---) (---) (---) (---) (---) (---)    (---) (---)   (---)          (---)       (---) (---) (---)
-     (---)        (---)  (w)   (e)   (r)  (t)   (---)    (---)  (y) (lt numeric u) (lt numeric i)  (o)  (---) (---)
-     (---)         (a)  (G t) (M d) (C f) (g)                   (h)    (C j)       (lt symbols k) (M l)  (p)  (---)
-     (osm S)       (z)   (x)   (c)   (v)  (b)   (---)    (---)  (n)     (m)          (comma)      (dot)  (q)  (osm S)
-     (tg xwindow) (---) (---) (---) (---)                              (---)          (---)       (---) (---) (---)
-     
-                                          (---) (---)    (---) (---)
-                                                (M-x)    (C-z)
-                  (mybspace) (lt xwindow space) (tab)    (lt xwindow escape) (lt xwindow enter) (---)))
-
-  ("xwindow" (0 1 0)
-    ((em-split) ( ) ( ) ( ) ( ) ( ) ( )     (a b c) ( ) ( )   ( )  ( )   ( )  ( )
-     ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  (G-b) ( )   ( )  ( )
-     ( ) ( ) ( ) ( ) ( ) ( )             ( ) (F4) (F3) (G-t)  (F5) ( )
-     ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  ( )   ( )   ( )  ( )
-     ( ) ( ) ( ) ( ) ( )                     ( )  ( )   ( )   ( )  ( )
-                         ( ) ( )     ( ) ( )
-                             ( )     ( )
-                     ( ) ( ) ( )     ( ) ( ) ( )))
+  '(("xwindow" (0 1 0)
+    ((em-split) ( ) ( ) ( ) (x y ) ( ) ( )     (a b c) ( ) ( )   ( )  ( )   ( )  ( )
+          (x y) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  (G-b) ( )   ( )  ( )
+            ( ) ( ) ( ) ( ) ( ) ( )             ( ) (F4) (F3) (G-t)  (F5) ( )
+            ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  ( )   ( )   ( )  ( )
+            ( ) ( ) ( ) ( ) ( )                     ( )  ( )   ( )   ( )  ( )
+                                ( ) ( )     ( ) ( )
+                                    ( )     ( )
+                            ( ) ( ) ( )     ( ) ( ) ( )))
   
   ("numeric"
-    (( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+    (( ) ( ) (x y) ( ) ( ) ( ) ( )     ( ) ( ) (a symbols) ( ) ( ) ( ) ( )
      ( ) ( ) (1) (2) (3) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
      ( ) (0) (4) (5) (6) ( )             ( ) ( ) ( ) ( ) ( ) ( )
      ( ) (0) (7) (8) (9) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
@@ -599,7 +720,7 @@ macros."
                      ( ) ( ) ( )     ( ) ( ) ( )))
 
   ("symbols"
-    (( ) ( ) ("[") ("]") ({) (}) ( )     ( ) ( ) ( ) ( ) ( ) ( ) (C-x ENT)
+    (( ) ( ) ("[") ("]") ({) (}) ( )     (a b c ) ( ) ( ) ( ) ( ) ( ) (C-x ENT)
      ( ) ( ) ( )   ( )   ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
      ( ) ( ) ( )   ( )   ( ) ( )             ( ) ( ) ( ) ( ) ( ) ( )
      ( ) ( ) ( )   ( )   ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
@@ -626,6 +747,9 @@ macros."
     
     (insert (c-layer-codes         (keymap-layers keymap)))
     (insert (c-custom-keycodes     (keymap-macros keymap)))
+    (when (keymap-tapdances keymap)
+      (insert (c-tapdance-enum (keymap-tapdances keymap)))
+      (insert (c-tapdance-actions (keymap-tapdances keymap))))
     (insert (c-combos-combo-events (keymap-combos keymap)))
     (insert (c-combos-progmem      (keymap-combos keymap)))
     (insert (c-combos-key-combos   (keymap-combos keymap)))
@@ -652,13 +776,12 @@ macros."
   (with-temp-file (c-file-path "rules.mk"
                                (keymap-name keymap)
                                (keymap-keyboard keymap))
-    (insert "TAP_DANCE_ENABLE = no
-FORCE_NKRO = yes
-RGBLIGHT_ENABLE = no
-")
-    (awhen (keymap-combos keymap)
-      (insert (format "COMBO_ENABLE = %s\n"
-                      (if it "yes" "no"))))))
+    (when (keymap-tapdances keymap)
+      (insert "TAP_DANCE_ENABLE = yes\n"))
+    (when (keymap-combos keymap)
+      (insert "COMBO_ENABLE = yes\n"))
+    (insert "FORCE_NKRO = yes\n")
+    (insert "RGBLIGHT_ENABLE = no\n")))
 
 (defun generate-all (keymap)
   (generate-keymap-file keymap)
