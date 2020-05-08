@@ -1,4 +1,4 @@
-;;; ergodox.el --- Generate keymaps and config files for qmk keyboards -*- lexical-binding: t -*-
+;;; mugur.el --- Generate keymaps and config files for qmk keyboards -*- lexical-binding: t -*-
 
 (require 's)
 
@@ -157,12 +157,7 @@ macros."
                                       "S --> %s\n")
                               (car entry) (keycode-string entry)))))
           (insert "\n")))
-      (switch-to-buffer b)))
-  
-  (ert-deftest keycodes-should-not-error ()
-    (dolist (category supported-keycodes)
-      (dolist (entry (cdr category))
-        (should (keycode (car entry)))))))
+      (switch-to-buffer b))))
 
 (defun modtap (mod key)
   "MOD when held, KEY when tapped."
@@ -187,25 +182,25 @@ macros."
   (format "OSL(%s)" (upcase (symbol-name layer))))
 
 ;;;; Macros
-(cl-defstruct ss-macro-entry
+(cl-defstruct macro-entry
   name expansion)
 
-(defun ss-macro-transform-keys (keys)
+(defun macro-transform-keys (keys)
   (mapcar (lambda (key)
        (key-or-sequence key :ss t))
      keys))
 
-(defun ss-macro-define (entry)
+(defun macro-define (entry)
   (cl-reduce
    (lambda (item1 item2)
      (concat item1 " " item2))
-   (ss-macro-transform-keys entry)))
+   (macro-transform-keys entry)))
 
-(defun ss-macro (entry)
-  (let ((expansion (ss-macro-define entry)))
-    (make-ss-macro-entry
+(defun macro (entry)
+  (let ((expansion (macro-define entry)))
+    (make-macro-entry
      :name (format "SS_MACRO_%s" (upcase (md5 expansion)))
-     :expansion (ss-macro-define entry))))
+     :expansion (macro-define entry))))
 
 (defun extract-macros (keys)
   (cl-remove-duplicates
@@ -214,22 +209,11 @@ macros."
     (mapcar (lambda (key)
          (let ((tr (transform-key key)))
            (if (s-contains-p "SS_MACRO_" tr)
-               (ss-macro key)
+               (macro key)
              nil)))
        keys))
-   :key #'ss-macro-entry-name
+   :key #'macro-entry-name
    :test #'string-equal))
-
-(ert-deftest test-ss-macro ()
-  (cl-dolist (test
-       '((("you do" C-x) "\"you do\" SS_LCTL(\"x\")")
-         ((M-x a)        "SS_LALT(\"x\") SS_TAP(X_A)")
-         ((M-x a b)      "SS_LALT(\"x\") SS_TAP(X_A) SS_TAP(X_B)")
-         ((M-x "this" a) "SS_LALT(\"x\") \"this\" SS_TAP(X_A)")
-         ))
-    (should (equal (ss-macro-define (car test))
-                   (cadr test)))))
-
 
 ;;;; Combos
 (cl-defstruct combo
@@ -238,7 +222,7 @@ macros."
 (defun combo-define (combo)
   (let* ((keycodes (mapcar #'keycode (butlast combo)))
          (last (last combo))
-         (ss (ss-macro-transform-keys
+         (ss (macro-transform-keys
               (if (listp (car last))
                   (car last)
                 last))))
@@ -251,17 +235,6 @@ macros."
                                    (concat item1 ", " item2))
                                  (car (butlast c)))
                 :expansion (car (last c)))))
-
-(ert-deftest test-combo-define ()
-  (cl-dolist (test
-       '(((a x "whatever") (("KC_A" "KC_X") ("\"whatever\"")))
-         ((a x ("whatever")) (("KC_A" "KC_X") ("\"whatever\"")))
-         ((a x (x "whatever")) (("KC_A" "KC_X") ("SS_TAP(X_X)" "\"whatever\"")))
-         ((a x C-x) (("KC_A" "KC_X") ("SS_LCTL(\"x\")")))
-         ((a x (C-x "whatever")) (("KC_A" "KC_X") ("SS_LCTL(\"x\")" "\"whatever\"")))))
-    (should (equal (combo-define (car test))
-                   (cadr test)))))
-
 
 ;; Tap Dance
 (cl-defstruct tapdance
@@ -304,18 +277,6 @@ macros."
               keys))
    :key #'tapdance-key-name
    :test #'string-equal))
-
-(ert-deftest test-tapdance-p ()
-  (cl-dolist (test
-       '(((x y) "TD_X_Y")
-         ((x emacs) "TD_X_EMACS")
-         ((x "emacs") nil)
-         ((C x) nil)
-         ((C M) nil)))
-    (should (equal (aif (tapdance (car test))
-                       (tapdance-name it)
-                     nil)
-                   (cadr test)))))
 
 ;;;; Layer Switching
 (defun layer-switching-codes ()
@@ -377,23 +338,10 @@ macros."
     ((and `(,action ,layer ,key-or-mod)
           (guard (layer-switch-p action)))
      (layer-switch action layer key-or-mod))
-    (_ (ss-macro-entry-name (ss-macro key)))))
+    (_ (macro-entry-name (macro key)))))
 
 (defun transform-keys (keys)
   (mapcar #'transform-key keys))
-
-(ert-deftest test-transform-key ()
-  (cl-dolist (test
-       '((()      "___")
-         ((c)     "KC_C")
-         ((C)     "LCTL")
-         ((M-a)   "LALT(KC_A)")
-         ((C-M-a) "LCA(KC_A)")
-         ((x y)   "TD_X_Y")
-         (("what you do") "SS_MACRO_F20F55CF099E6BE80B9D823C1C609006")
-         ((M a)   "MT(MOD_LALT, KC_A)")))
-    (should (equal (transform-key (car test))
-                   (cadr test)))))
 
 (cl-defstruct layer
   name
@@ -484,7 +432,7 @@ macros."
                       (replace-custom-keys
                        custom-keys (keys layer))))
                    layers))
-         :key #'ss-macro-entry-name
+         :key #'macro-entry-name
          :test #'string-equal)
 
         :tapdances
@@ -503,16 +451,16 @@ macros."
     keymaps))
 
 ;;;; C Code Generators
-(defun c-custom-keycodes (ss-macros)
+(defun c-custom-keycodes (macros)
   (with-temp-buffer
     (insert "enum custom_keycodes {\n\tEPRM = SAFE_RANGE,\n")
-    (cl-dolist (keycode ss-macros)
+    (cl-dolist (keycode macros)
       (insert (format "\t%s,\n"
-                      (upcase (ss-macro-entry-name keycode)))))
+                      (upcase (macro-entry-name keycode)))))
     (insert "};\n\n")
     (buffer-string)))
 
-(defun c-process-record-user (ss-macros)
+(defun c-process-record-user (macros)
   (with-temp-buffer
     (insert "bool process_record_user(uint16_t keycode, keyrecord_t *record) {\n")
     (insert "\tif (record->event.pressed) {\n")
@@ -520,9 +468,9 @@ macros."
     (insert "\t\tcase EPRM:\n")
     (insert "\t\t\teeconfig_init();\n")
     (insert "\t\t\treturn false;\n")
-    (cl-dolist (macro ss-macros)
-      (insert (format "\t\tcase %s:\n" (ss-macro-entry-name macro)))
-      (insert (format "\t\t\tSEND_STRING(%s);\n" (ss-macro-entry-expansion macro)))
+    (cl-dolist (macro macros)
+      (insert (format "\t\tcase %s:\n" (macro-entry-name macro)))
+      (insert (format "\t\t\tSEND_STRING(%s);\n" (macro-entry-expansion macro)))
       (insert "\t\t\treturn false;\n"))
     (insert "\t\t}\n\t}\n\treturn true;\n}\n\n")
     (buffer-string)))
@@ -552,33 +500,6 @@ macros."
                       (tapdance-key2 tapdance)))))
     (insert "};\n\n")
     (buffer-string)))
-
-(ert-deftest test-tapdance-c ()
-  (let ((tapdances
-         (mapcar #'tapdance
-            '((x y)
-              (a b)
-              (a emacs_layer)))))
-    (should
-     (string-equal
-      (c-tapdance-enum tapdances)
-      "enumm {
-	TD_X_Y,
-	TD_A_B,
-	TD_A_EMACS_LAYER,
-};
-
-"))
-    (should
-     (string-equal
-      (c-tapdance-actions tapdances)
-      "qk_tap_dance_action_t tap_dance_actions[] = {
-	[TD_X_Y] = ACTION_TAP_DANCE_DOUBLE(KC_X, KC_Y),
-	[TD_A_B] = ACTION_TAP_DANCE_DOUBLE(KC_A, KC_B),
-	[TD_A_EMACS_LAYER] = ACTION_TAP_DANCE_LAYER_TOGGLE(KC_A, EMACS_LAYER),
-};
-
-"))))
 
 (defun c-combos-combo-events (combos)
   (with-temp-buffer
@@ -632,7 +553,21 @@ macros."
       (insert "};\n\n"))
     (buffer-string)))
 
-(defun c-keymaps (layers)
+(defun keyboard-layout (keymap layer)
+  "Return the correct keyboard layout based on the LAYER keyboard
+and orientation."
+  (let* ((keyboard (s-replace "_" "-" (keymap-keyboard keymap))))
+    (unless (or (boundp (intern (format "%s-vertical" keyboard)))
+                (boundp (intern (format "%s-horizontal" keyboard))))
+      (load-file (format "%slayouts/%s.el"
+                         (file-name-directory (locate-library "mugur"))
+                         keyboard)))
+    (if (equal (layer-orientation layer)
+               'vertical)
+        ergodox-ez-layout
+      ergodox-ez-horizontal)))
+
+(defun c-keymaps (keymap)
   (with-temp-buffer  
     (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
     (insert
@@ -640,14 +575,11 @@ macros."
       (lambda (item1 item2)
         (concat item1 ", \n\n" item2))
       (mapcar (lambda (layer)
-           (s-format (if (equal (layer-orientation layer)
-                                'vertical)
-                         ergodox-layout
-                       ergodox-layout-horizontal)
-                     'elt
-                     (cons (layer-name layer)
-                           (layer-keys layer))))
-         layers)))
+                (s-format (keyboard-layout keymap layer)
+                          'elt
+                          (cons (layer-name layer)
+                                (layer-keys layer))))
+              (keymap-layers keymap))))
     (insert "\n};\n\n\n")
     (buffer-string)))
 
@@ -675,9 +607,8 @@ macros."
     (insert (c-combos-progmem      (keymap-combos keymap)))
     (insert (c-combos-key-combos   (keymap-combos keymap)))
     (insert (c-combos-process-combo-event (keymap-combos keymap)))    
-    (insert (c-keymaps             (keymap-layers keymap)))
-    (insert (c-process-record-user (keymap-macros keymap)))
-    ))
+    (insert (c-keymaps             keymap))
+    (insert (c-process-record-user (keymap-macros keymap)))))
 
 (defun generate-config-file (keymap)
   (with-temp-file (c-file-path "config.h"
@@ -718,19 +649,7 @@ macros."
                               (keymap-name keymap)))
          (switch-to-buffer "make mykeyboard")))
 
-(defun flash-keymap (keymap)
-  (let ((hex (format "%s/.build/%s_%s.hex"
-                     qmk-path
-                     (keymap-keyboard keymap)
-                     (keymap-name keymap))))
-    (message hex)
-    (progn (start-process "flashing"
-                          "flash mykeyboard"
-                          "wally-cli"
-                          hex)
-           (switch-to-buffer "flash mykeyboard"))))
-
-(defun build ()
+(defun select-keymap ()
   (interactive)
   (let* ((keymap
           (completing-read "Select-keymap: "
@@ -754,103 +673,28 @@ macros."
                              :key #'keymap-name
                              :test #'string-equal)
                   keyboard-maps))))
-        (generate-keymap keyboard-keymap)
-        (c-make-keymap keyboard-keymap)))))
+        keyboard-keymap))))
 
-;;;; Layouts
-(defconst ergodox-layout
-  "[$0] = LAYOUT_ergodox(
-    $1,  $2,  $3,  $4,  $5,  $6,  $7,
-    $8,  $9,  $10, $11, $12, $13, $14,
-    $15, $16, $17, $18, $19, $20,
-    $21, $22, $23, $24, $25, $26, $27,
-    $28, $29, $30, $31, $32,
-                             $33, $34,
-                                  $35,
-                        $36, $37, $38,
-    // ----------------------------------------------
-    $39, $40, $41, $42, $43, $44, $45,
-    $46, $47, $48, $49, $50, $51, $52,
-    $53, $54, $55, $56, $57, $58,
-    $59, $60, $61, $62, $63, $64, $65,
-    $66, $67, $68, $69, $70,
-    $71, $72,
-    $73,
-    $74, $75, $76)")
+(defun flash-keymap ()
+  (interactive)
+  (let* ((keymap (select-keymap))
+         (hex (format "%s/.build/%s_%s.hex"
+                      qmk-path
+                      (keymap-keyboard keymap)
+                      (keymap-name keymap))))
+    (message hex)
+    (progn (start-process "flashing"
+                          "flash mykeyboard"
+                          "wally-cli"
+                          hex)
+           (switch-to-buffer "flash mykeyboard"))))
 
-(defconst ergodox-layout-horizontal
-  "[$0] = LAYOUT_ergodox(
-    $1,  $2,  $3,  $4,  $5,  $6,  $7,    $8,  $9,  $10, $11, $12, $13, $14,
-    $15, $16, $17, $18, $19, $20, $21,   $22, $23, $24, $25, $26, $27, $28,
-    $29, $30, $31, $32, $33, $34,             $35, $36, $37, $38, $39, $40,
-    $41, $42, $43, $44, $45, $46, $47,   $48, $49, $50, $51, $52, $53, $54,
-    $55, $56, $57, $58, $59,                       $60, $61, $62, $63, $64, 
-                             $65, $66,   $67, $68,
-                                  $69,   $70, 
-                        $71, $72, $73,   $74, $75, $76)")
+(defun build ()
+  (interactive)
+  (let ((keymap (select-keymap)))    
+    (generate-keymap keymap)
+    (c-make-keymap   keymap)))
 
+(provide 'mugur)
 
-(mugur-keymap "elisp" "ergodox_ez"
-  :combos '((left right escape)
-            (x y (C-x "now")))
-  
-  :custom-keys '((mybspace (lt xwindow bspace))
-                 (em-split (C-x 3)))
-  
-  :layers
-  '(("xwindow" (0 1 0)
-    ((em-split) ( ) ( ) ( ) (x y ) ( ) ( )     (a b c) ( ) ( )   ( )  ( )   ( )  ( )
-          (x y) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  (G-b) ( )   ( )  ( )
-            ( ) ( ) ( ) ( ) ( ) ( )             ( ) (F4) (F3) (G-t)  (F5) ( )
-            ( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( )  ( )   ( )   ( )  ( )
-            ( ) ( ) ( ) ( ) ( )                     ( )  ( )   ( )   ( )  ( )
-                                ( ) ( )     ( ) ( )
-                                    ( )     ( )
-                            ( ) ( ) ( )     ( ) ( ) ( )))
-  
-  ("numeric"
-    (( ) ( ) (x y) ( ) ( ) ( ) ( )     ( ) ( ) (a symbols) ( ) ( ) ( ) ( )
-     ( ) ( ) (1) (2) (3) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) (0) (4) (5) (6) ( )             ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) (0) (7) (8) (9) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) ( ) ( ) ( ) ( )                     ( ) ( ) ( ) ( ) ( )
-                         ( ) ( )     ( ) ( )
-                             ( )     ( )
-                     ( ) ( ) ( )     ( ) ( ) ( )))
-
-  ("symbols"
-    (( ) ( ) ("[") ("]") ({) (}) ( )     (a b c ) ( ) ( ) ( ) ( ) ( ) (C-x ENT)
-     ( ) ( ) ( )   ( )   ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) ( ) ( )   ( )   ( ) ( )             ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) ( ) ( )   ( )   ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) ( ) ( )   ( )   ( )                     ( ) ( ) ( ) ( ) ( )
-                             ( ) ( )     ( ) ( )
-                                 ( )     ( )
-                         ( ) ( ) ( )     ( ) ( ) ( )))))
-
-
-(generate-keymap-file (car (keymaps-all)))
-(generate-keymap (car (keymaps-all)))
-
-;; (define-layer "template"
-;;   '(( ) ( ) ( ) ( ) ( ) ( ) ( )
-;;     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-;;     ( ) ( ) ( ) ( ) ( ) ( )
-;;     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-;;     ( ) ( ) ( ) ( ) ( )
-;;                         ( ) ( )
-;;                             ( )
-;;                     ( ) ( ) ( )
-;;  ;; ---------------------------
-;;     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-;;     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-;;         ( ) ( ) ( ) ( ) ( ) ( )
-;;     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-;;             ( ) ( ) ( ) ( ) ( )
-;;     ( ) ( )
-;;     ( )
-;;     ( ) ( ) ( )
-;;     ))
-
-
-
+;;; mugur.el ends here
