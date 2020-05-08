@@ -13,7 +13,7 @@
   :type '(string :tag "path")
   :group 'mugur)
 
-(setf qmk-path "~/projects/qmk_firmware")
+(setf qmk-path "/home/mihai/projects/qmk_firmware")
 
 (defconst supported-keycodes
   '(("Letters and Numbers"
@@ -220,8 +220,6 @@ macros."
    :key #'ss-macro-entry-name
    :test #'string-equal))
 
-(extract-macros '((a b c) (a b c)))
-
 (ert-deftest test-ss-macro ()
   (cl-dolist (test
        '((("you do" C-x) "\"you do\" SS_LCTL(\"x\")")
@@ -370,7 +368,7 @@ macros."
      (modtap modifier key))
     ((and `(,key1 ,key2)
           (guard (tapdance key)))
-     (tapdance-key-name (tapdance key)))
+     (tapdance-key-name (tapdance (list key1 key2))))
     (`(osm ,mod) (one-shot-mod mod))
     (`(osl ,layer) (one-shot-layer layer))
     ((and `(,action ,layer)
@@ -438,10 +436,6 @@ macros."
     (if (= (length (cadr layer)) 3)
         (caddr layer)
       (cadr layer)))
-
-  (cadr (cl-find 'em-split '((mybspace (lt xwindow bspace))
-                          (em-split (C-x 3)))
-              :key #'car))
 
   (defun replace-custom-keys (custom-keys keys)
     (let ((names (mapcar #'car custom-keys)))
@@ -567,7 +561,7 @@ macros."
               (a emacs_layer)))))
     (should
      (string-equal
-      (c-tapdance-enum mytapdances)
+      (c-tapdance-enum tapdances)
       "enumm {
 	TD_X_Y,
 	TD_A_B,
@@ -577,7 +571,7 @@ macros."
 "))
     (should
      (string-equal
-      (c-tapdance-actions mytapdances)
+      (c-tapdance-actions tapdances)
       "qk_tap_dance_action_t tap_dance_actions[] = {
 	[TD_X_Y] = ACTION_TAP_DANCE_DOUBLE(KC_X, KC_Y),
 	[TD_A_B] = ACTION_TAP_DANCE_DOUBLE(KC_A, KC_B),
@@ -710,11 +704,58 @@ macros."
     (insert "FORCE_NKRO = yes\n")
     (insert "RGBLIGHT_ENABLE = no\n")))
 
-(defun generate-all (keymap)
+(defun generate-keymap (keymap)
   (generate-keymap-file keymap)
   (generate-config-file keymap)
   (generate-rules-file keymap))
 
+(defun c-make-keymap (keymap)
+  (progn (start-process "make" "make mykeyboard" "make"
+                      "-C"
+                      qmk-path
+                      (format "%s:%s"
+                              (keymap-keyboard keymap)
+                              (keymap-name keymap)))
+         (switch-to-buffer "make mykeyboard")))
+
+(defun flash-keymap (keymap)
+  (let ((hex (format "%s/.build/%s_%s.hex"
+                     qmk-path
+                     (keymap-keyboard keymap)
+                     (keymap-name keymap))))
+    (message hex)
+    (progn (start-process "flashing"
+                          "flash mykeyboard"
+                          "wally-cli"
+                          hex)
+           (switch-to-buffer "flash mykeyboard"))))
+
+(defun build ()
+  (interactive)
+  (let* ((keymap
+          (completing-read "Select-keymap: "
+                           (mapcar (lambda (keymap)
+                                (format "%s - %s"
+                                        (keymap-name keymap)
+                                        (keymap-keyboard keymap)))
+                              (keymaps-all))))
+         (selection (and keymap (s-split "-" keymap)))
+         (name (and selection (s-trim (car selection))))
+         (keyboard (and keymap (s-trim (cadr selection)))))
+    (when (and name keyboard)
+      (let* ((keyboard-maps
+              (cl-find keyboard (keymaps-all)
+                       :key #'keymap-keyboard
+                       :test #'string-equal))
+             (keyboard-keymap
+              (when keyboard-maps
+                (if (listp keyboard-maps)
+                    (cl-find name
+                             :key #'keymap-name
+                             :test #'string-equal)
+                  keyboard-maps))))
+        (generate-keymap keyboard-keymap)
+        (c-make-keymap keyboard-keymap)))))
 
 ;;;; Layouts
 (defconst ergodox-layout
@@ -789,7 +830,7 @@ macros."
 
 
 (generate-keymap-file (car (keymaps-all)))
-(generate-all (car (keymaps-all)))
+(generate-keymap (car (keymaps-all)))
 
 ;; (define-layer "template"
 ;;   '(( ) ( ) ( ) ( ) ( ) ( ) ( )
