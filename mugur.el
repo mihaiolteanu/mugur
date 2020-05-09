@@ -40,7 +40,8 @@
   :type '(string :tag "path")
   :group 'mugur)
 
-(setf mugur-qmk-path "/home/mihai/projects/qmk_firmware")
+(defconst mugur-layout-vertical nil)
+(defconst mugur-layout-horizontal nil)
 
 (defconst mugur--supported-keycodes
   '(("Letters and Numbers"
@@ -589,15 +590,15 @@ macros."
   "Return the correct keyboard layout based on the LAYER keyboard
 and orientation."
   (let* ((keyboard (s-replace "_" "-" (mugur--keymap-keyboard keymap))))
-    (unless (or (boundp (intern (format "%s-vertical" keyboard)))
-                (boundp (intern (format "%s-horizontal" keyboard))))
+    (unless (or mugur-layout-horizontal
+                mugur-layout-vertical)
       (load-file (format "%slayouts/%s.el"
                          (file-name-directory (locate-library "mugur"))
                          keyboard)))
     (if (equal (mugur--layer-orientation layer)
                'vertical)
-        ergodox-ez-layout
-      ergodox-ez-horizontal)))
+        mugur-layout-vertical
+      mugur-layout-horizontal)))
 
 (defun mugur--c-keymaps (keymap)
   (with-temp-buffer  
@@ -607,11 +608,11 @@ and orientation."
       (lambda (item1 item2)
         (concat item1 ", \n\n" item2))
       (mapcar (lambda (layer)
-                (s-format (mugur--keyboard-layout keymap layer)
-                          'elt
-                          (cons (mugur--layer-name layer)
-                                (mugur--layer-keys layer))))
-              (mugur--keymap-layers keymap))))
+           (s-format (mugur--keyboard-layout keymap layer)
+                     'elt
+                     (cons (mugur--layer-name layer)
+                           (mugur--layer-keys layer))))
+         (mugur--keymap-layers keymap))))
     (insert "\n};\n\n\n")
     (buffer-string)))
 

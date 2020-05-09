@@ -1,4 +1,4 @@
-(defconst ergodox-ez-vertical
+(setf mugur-layout-vertical
   "[$0] = LAYOUT_ergodox(
     $1,  $2,  $3,  $4,  $5,  $6,  $7,
     $8,  $9,  $10, $11, $12, $13, $14,
@@ -18,7 +18,7 @@
     $73,
     $74, $75, $76)")
 
-(defconst ergodox-ez-horizontal
+(setf mugur-layout-horizontal
   "[$0] = LAYOUT_ergodox(
     $1,  $2,  $3,  $4,  $5,  $6,  $7,    $8,  $9,  $10, $11, $12, $13, $14,
     $15, $16, $17, $18, $19, $20, $21,   $22, $23, $24, $25, $26, $27, $28,
