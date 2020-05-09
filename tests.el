@@ -1,9 +1,9 @@
-(ert-deftest keycodes-should-not-error ()
-    (dolist (category supported-keycodes)
+(ert-deftest mugur-keycodes-should-not-error ()
+    (dolist (category mugur--supported-keycodes)
       (dolist (entry (cdr category))
-        (should (keycode (car entry))))))
+        (should (mugur--keycode (car entry))))))
 
-(ert-deftest test-tapdance-p ()
+(ert-deftest mugur-test-tapdance-p ()
   "Correctly interpret tapdances."
   (cl-dolist (test
        '(((x y) "TD_X_Y")
@@ -11,32 +11,32 @@
          ((x "emacs") nil)
          ((C x) nil)
          ((C M) nil)))
-    (should (equal (aif (tapdance (car test))
-                       (tapdance-name it)
+    (should (equal (aif (mugur--tapdance (car test))
+                       (mugur--tapdance-name it)
                      nil)
                    (cadr test)))))
 
-(ert-deftest test-macro ()
+(ert-deftest mugur-test-macro ()
   (cl-dolist (test
        '((("you do" C-x) "\"you do\" SS_LCTL(\"x\")")
          ((M-x a)        "SS_LALT(\"x\") SS_TAP(X_A)")
          ((M-x a b)      "SS_LALT(\"x\") SS_TAP(X_A) SS_TAP(X_B)")
          ((M-x "this" a) "SS_LALT(\"x\") \"this\" SS_TAP(X_A)")
          ))
-    (should (equal (macro-define (car test))
+    (should (equal (mugur--macro-define (car test))
                    (cadr test)))))
 
-(ert-deftest test-combo-define ()
+(ert-deftest mugur-test-combo-define ()
   (cl-dolist (test
        '(((a x "whatever") (("KC_A" "KC_X") ("\"whatever\"")))
          ((a x ("whatever")) (("KC_A" "KC_X") ("\"whatever\"")))
          ((a x (x "whatever")) (("KC_A" "KC_X") ("SS_TAP(X_X)" "\"whatever\"")))
          ((a x C-x) (("KC_A" "KC_X") ("SS_LCTL(\"x\")")))
          ((a x (C-x "whatever")) (("KC_A" "KC_X") ("SS_LCTL(\"x\")" "\"whatever\"")))))
-    (should (equal (combo-define (car test))
+    (should (equal (mugur--combo-define (car test))
                    (cadr test)))))
 
-(ert-deftest test-transform-key ()
+(ert-deftest mugur-test-transform-key ()
   (cl-dolist (test
        '((()      "___")
          ((c)     "KC_C")
@@ -46,14 +46,14 @@
          ((x y)   "TD(TD_X_Y)")
          (("what you do") "SS_MACRO_F20F55CF099E6BE80B9D823C1C609006")
          ((M a)   "MT(MOD_LALT, KC_A)")))
-    (should (equal (transform-key (car test))
+    (should (equal (mugur--transform-key (car test))
                    (cadr test)))))
 
 ;; Test the generated C code.
-(ert-deftest test-macro-c ()
-  (let* ((macros (mapcar #'macro '((a b c) ("whatever"))))
-         (custom-keycodes (c-custom-keycodes macros))
-         (process-record-user (c-process-record-user macros)))
+(ert-deftest mugur-test-macro-c ()
+  (let* ((macros (mapcar #'mugur--macro '((a b c) ("whatever"))))
+         (custom-keycodes (mugur--c-custom-keycodes macros))
+         (process-record-user (mugur--c-process-record-user macros)))
     (should (string-equal custom-keycodes
                           "enum custom_keycodes {
 	EPRM = SAFE_RANGE,
@@ -83,15 +83,15 @@
 "))
     ))
 
-(ert-deftest test-tapdance-c ()
+(ert-deftest mugur-test-tapdance-c ()
   (let ((tapdances
-         (mapcar #'tapdance
+         (mapcar #'mugur--tapdance
             '((x y)
               (a b)
               (a emacs_layer)))))
     (should
      (string-equal
-      (c-tapdance-enum tapdances)
+      (mugur--c-tapdance-enum tapdances)
       "enum {
 	TD_X_Y,
 	TD_A_B,
@@ -101,7 +101,7 @@
 "))
     (should
      (string-equal
-      (c-tapdance-actions tapdances)
+      (mugur--c-tapdance-actions tapdances)
       "qk_tap_dance_action_t tap_dance_actions[] = {
 	[TD_X_Y] = ACTION_TAP_DANCE_DOUBLE(KC_X, KC_Y),
 	[TD_A_B] = ACTION_TAP_DANCE_DOUBLE(KC_A, KC_B),
