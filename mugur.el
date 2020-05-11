@@ -103,6 +103,7 @@
 
 (let ((mugur--keycodes (make-hash-table :test 'equal)))
   (defun mugur--keycode-string (keycode)
+    "Transform the KEYCODE based on the supported keycodes."
     (if (= (length keycode) 2)
         (upcase (cadr keycode))
       (if (numberp (car keycode))
@@ -133,12 +134,15 @@
      :key #'car))
 
   (defun mugur--modifier-key-p (key)
+    "Is KEY a modifier key, like C, M or G?"
     (mugur--key-in-category-p "Modifiers" key))
   
   (defun mugur--special-key-p (key)
+    "Is KEY one of empty or transparent keys?"
     (mugur--key-in-category-p "Special Keys" key))
   
   (cl-defun mugur--keycode (key &key (ss nil) (mod nil))
+    "Return the KEY keycode usable in the C keymap array."
     (awhen (mugur--keycode-raw key)
       (if (mugur--special-key-p key)
           it
@@ -186,6 +190,7 @@ macros."
                                       "S --> %s\n")
                               (car entry) (mugur--keycode-string entry)))))
           (insert "\n")))
+      (beginning-of-buffer)
       (switch-to-buffer b))))
 
 (defun mugur--modtap (mod key)
@@ -226,6 +231,7 @@ macros."
    (mugur--macro-transform-keys entry)))
 
 (defun mugur--macro (entry)
+  "Define a qmk macro."
   (let ((expansion (mugur--macro-define entry)))
     (make-mugur--macro
      :name (format "SS_MACRO_%s" (upcase (md5 expansion)))
@@ -384,6 +390,11 @@ macros."
 (cl-defstruct mugur--keymap
   name
   keyboard
+  tapping-term
+  combo-term
+  rgblight-enable
+  rgblight-animations
+  force-nkro
   layers
   combos
   macros
@@ -398,10 +409,18 @@ macros."
    :orientation orientation))
 
 (cl-defun mugur--new-keymap (&key name keyboard layers
-                           (combos nil) (macros nil) (tapdances nil))
+                                  (tapping-term nil) (combo-term nil)
+                                  (force-nkro t)
+                                  (rgblight-enable nil) (rgblight-animations nil) 
+                                  (combos nil) (macros nil) (tapdances nil))
   (make-mugur--keymap
    :name name
    :keyboard keyboard
+   :tapping-term tapping-term
+   :combo-term combo-term
+   :rgblight-enable rgblight-enable
+   :rgblight-animations rgblight-animations
+   :force-nkro force-nkro
    :layers layers
    :combos combos
    :macros macros
@@ -429,14 +448,24 @@ macros."
 
 ;;;###autoload
   (cl-defun mugur-keymap (name keyboard &key
+                               (tapping-term 180)
+                               (combo-term 100)
+                               (rgblight-enable nil)
+                               (rgblight-animations nil)
+                               (force-nkro t)
                                (layers nil)
                                (combos nil)       
-                               (custom-keys nil))
+                               (with-keys nil))
     "Define a qmk keymap."
     (cl-pushnew
      (mugur--new-keymap
       :name name
       :keyboard keyboard
+      :tapping-term tapping-term
+      :combo-term combo-term
+      :rgblight-enable rgblight-enable
+      :rgblight-animations rgblight-animations
+      :force-nkro force-nkro
       :layers
       (let ((index 0))
         (mapcar (lambda (layer)
@@ -446,7 +475,7 @@ macros."
                (setf index (+ 1 index))
                (mugur--new-layer (upcase name) index
                                  (mugur--transform-keys
-                                  (mugur--replace-custom-keys custom-keys keys))
+                                  (mugur--replace-custom-keys with-keys keys))
                                  :leds leds)))
            layers))
       
@@ -463,7 +492,7 @@ macros."
               (mapcar (lambda (layer)
                    (mugur--extract-macros
                     (mugur--replace-custom-keys
-                     custom-keys (mugur--keys layer))))
+                     with-keys (mugur--keys layer))))
                  layers))
        :key #'mugur--macro-name
        :test #'string-equal)
@@ -474,7 +503,7 @@ macros."
               (mapcar (lambda (layer)
                    (mugur--tapdance-extract
                     (mugur--replace-custom-keys
-                     custom-keys (mugur--keys layer))))
+                     with-keys (mugur--keys layer))))
                  layers))
        :key #'mugur--tapdance-name
        :test #'string-equal))
@@ -684,12 +713,13 @@ and orientation."
                    "config.h"
                    (mugur--keymap-name keymap)
                    (mugur--keymap-keyboard keymap))
-    (insert "#undef TAPPING_TERM
-#define TAPPING_TERM 180
-#define COMBO_TERM 100
-#define FORCE_NKRO
-#undef RGBLIGHT_ANIMATIONS
-")
+    (insert "#undef TAPPING_TERM\n")
+    (insert (format "#define TAPPING_TERM %s\n" (mugur--keymap-tapping-term keymap)))
+    (insert (format "#define COMBO_TERM %s\n" (mugur--keymap-combo-term keymap)))
+    (when (mugur--keymap-force-nkro keymap)
+      (insert "#define FORCE_NKRO\n"))
+    (unless (mugur--keymap-rgblight-animations keymap)
+      (insert "#undef RGBLIGHT_ANIMATIONS\n"))
     (awhen (mugur--keymap-combos keymap)
       (insert (format "#define COMBO_COUNT %s\n"
                       (length it))))))
@@ -703,8 +733,12 @@ and orientation."
       (insert "TAP_DANCE_ENABLE = yes\n"))
     (when (mugur--keymap-combos keymap)
       (insert "COMBO_ENABLE = yes\n"))
-    (insert "FORCE_NKRO = yes\n")
-    (insert "RGBLIGHT_ENABLE = no\n")))
+    (when (mugur--keymap-force-nkro keymap)
+      (insert "FORCE_NKRO = yes\n"))
+    (insert (format "RGBLIGHT_ENABLE = %s\n"
+                    (if (mugur--keymap-rgblight-enable keymap)
+                        "yes"
+                      "no")))))
 
 ;;;###autoload
 (defun mugur-generate-keymap (keymap)
