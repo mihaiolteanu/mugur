@@ -49,6 +49,46 @@
     (should (equal (mugur--transform-key (car test))
                    (cadr test)))))
 
+(ert-deftest mugur-test-leds-keys-orientation-extraction-1 ()
+  (let ((layer '("xwindow" (0 1 1) horizontal
+                 ((a) (b) (c) (d) (e)))))
+    (should (equal (mugur--leds layer)
+                   '(0 1 1)))
+    (should (equal (mugur--keys layer)
+                   '((a) (b) (c) (d) (e))))
+    (should (equal (mugur--orientation layer)
+                   'horizontal))))
+
+(ert-deftest mugur-test-leds-keys-orientation-extraction-2 ()
+  (let ((layer '("xwindow" (0 1 1)
+                 ((a) (b) (c) (d) (e)))))
+    (should (equal (mugur--leds layer)
+                   '(0 1 1)))
+    (should (equal (mugur--keys layer)
+                   '((a) (b) (c) (d) (e))))
+    (should (equal (mugur--orientation layer)
+                   nil))))
+
+(ert-deftest mugur-test-leds-keys-orientation-extraction-3 ()
+  (let ((layer '("xwindow" horizontal
+                 ((a) (b) (c) (d) (e)))))
+    (should (equal (mugur--leds layer)
+                   nil))
+    (should (equal (mugur--keys layer)
+                   '((a) (b) (c) (d) (e))))
+    (should (equal (mugur--orientation layer)
+                   'horizontal))))
+
+(ert-deftest mugur-test-leds-keys-orientation-extraction-4 ()
+  (let ((layer '("xwindow"
+                 ((a) (b) (c) (d) (e)))))
+    (should (equal (mugur--leds layer)
+                   nil))
+    (should (equal (mugur--keys layer)
+                   '((a) (b) (c) (d) (e))))
+    (should (equal (mugur--orientation layer)
+                   nil))))
+
 ;; Test the generated C code.
 (ert-deftest mugur-test-macro-c ()
   (let* ((macros (mapcar #'mugur--macro '((a b c) ("whatever"))))

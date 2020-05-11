@@ -1,12 +1,10 @@
 # Overview
 
-A high-level interface for configuring and generating keymaps for qmk-powered
-keyboards.
-
 A short and simplified example,
 
 ```emacs-lisp
 (mugur-keymap "my keymap" "5plus2"
+  :tapping-term 200
   :layers
   '(("base"
      ((q) (C w) (M e) (G r) (t) (y)
@@ -101,6 +99,11 @@ The first element of each list is the new key name and the second element is
 anything that could have been specified directly in the `mugur-keymap`
 layers. In short, this is just a list of shortcuts.
 
+## LEDs and orientation
+
+These two options can be specified anywhere after the layer name in the
+`mugur-kemay` entry.
+
 ## Turn on LEDs on layer switching
 
 When defining the `mugur-keymap`, you can add a list of three elements right
@@ -109,16 +112,52 @@ keyboard when that layer is active. You can turn on any led, all the leds or
 none. This feature is only supported for Ergodox Ez keyboards for now. PRs
 accepted for other keyboards.
 
+## Keymap orientation
+
+Since the base layer usually has lots and lots of keys, it might be better to
+split the keyboard halves vertically for a better view. For layers where most
+of the keys are transparent keys, the layout can be more compact and a
+horizontal split might be more convenient. The default is horizontal, but you
+can change this behaviour by simply adding a `vertical` (or confirm it by adding
+`horizontal`) between the layer name and the actual layer keys.
 
 # Configuration options
 
 Besides the actual layers, you can specify a list of additional config options
-for each `mugur-keymap`, since you can have as many `mugur-keymaps` as you
-want. These are all implemented as keyword arguments, and include
+for each `mugur-keymap` (you can have as many `mugur-keymaps` as you
+want). These are all implemented as keyword arguments, and include
 `tapping-term`, `combo-term`, `rgblight-enable`, `rgblight-animations` and
 `force-nkro`. The meaning and functionality of these arguments should be checked
 in the [qmk documentation](https://beta.docs.qmk.fm/developing-qmk/qmk-reference/config_options#behaviors-that-can-be-configured). More such config options can be added in the
 future, as the need arises. Open an issue if you need something from the qmk
 extensive list of options.
 
+# Other features
+
+All the following functionalities lets you select one of your keymaps, as
+defined with `mugur-keymap`. If you only have one keymap defined, that keymap is
+used by default.
+
+## Generate keymap
+
+`mugur-generate`: Generate the C files in the qmk_path/keymap-name
+folder. These are the same files that you would write by hand but now generated
+by mugur based on the keymap specified with `mugur-keymap`.
+
+## Make keymap
+
+`mugur-make-keymap`: Call `make` on the generated qmk layout. A new `compile-mode`
+buffer is opened with the compile results.
+
+## Build keymap
+
+`mugur-build`: Generate and make the keymap. This is equivalent to
+calling `mugur-generate` and `mugur-make` one after another.
+
+## Flash keymap
+
+`mugur-flash`: Flash the keymap. Currently only supported for Ergodox Ez
+keyboards. For other boards the flashing process might be different. Consider
+opening an issue or a PR if you own other keyboards and you want this feature
+supported for that board also.
 

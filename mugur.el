@@ -1,4 +1,4 @@
-;;; mugur.el --- Simplify the generation of keymaps for qmk-powered keyboards -*- lexical-binding: t -*-
+;;; mugur.el --- A high-level interface for configuring and generating keymaps for qmk-powered keyboards. -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2020 Mihai Olteanu
 
@@ -6,7 +6,7 @@
 ;; Version: 1.0
 ;; Package-Requires: ((emacs "26.1") (s "1.12.0"))
 ;; Keywords: multimedia
-;; URL: https://github.com/mihaiolteanu/vuiet
+;; URL: https://github.com/mihaiolteanu/mugur
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -22,8 +22,7 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
-
-
+;;; See the github url for details.
 
 ;;; Code:
 
@@ -189,8 +188,8 @@ macros."
               (insert (format (concat "\t%-" (number-to-string max)
                                       "S --> %s\n")
                               (car entry) (mugur--keycode-string entry)))))
-          (insert "\n")))
-      (beginning-of-buffer)
+          (insert "\n"))
+        (goto-char (point-min)))
       (switch-to-buffer b))))
 
 (defun mugur--modtap (mod key)
@@ -428,14 +427,25 @@ macros."
 
 (let (keymaps)
   (defun mugur--leds (layer)
-    (if (= (length (cadr layer)) 3)
-        (cadr layer)
-      nil))
+    (if (> (length layer) 2)
+        (if (and (listp (cadr layer))
+                 (= (length (cadr layer)) 3))
+            (cadr layer)
+          (if (and (listp (caddr layer))
+                   (= (length (caddr layer)) 3))
+              (caddr layer)
+            nil))))
 
+  (defun mugur--orientation (layer)
+    (if (> (length layer) 2)
+        (if (symbolp (cadr layer))
+            (cadr layer)
+          (if (symbolp (caddr layer))
+              (caddr layer)
+            nil))))
+  
   (defun mugur--keys (layer)
-    (if (= (length (cadr layer)) 3)
-        (caddr layer)
-      (cadr layer)))
+    (car (last layer)))
 
   (defun mugur--replace-custom-keys (custom-keys keys)
     (let ((names (mapcar #'car custom-keys)))
@@ -471,12 +481,14 @@ macros."
         (mapcar (lambda (layer)
              (let ((name (car layer))
                    (leds (mugur--leds layer))
-                   (keys (mugur--keys layer)))
+                   (keys (mugur--keys layer))
+                   (orientation (mugur--orientation layer)))
                (setf index (+ 1 index))
                (mugur--new-layer (upcase name) index
                                  (mugur--transform-keys
                                   (mugur--replace-custom-keys with-keys keys))
-                                 :leds leds)))
+                                 :leds leds
+                                 :orientation orientation)))
            layers))
       
       :combos
@@ -636,7 +648,7 @@ Nothing else to add here at the moment."
     (insert "\tergodox_right_led_3_off();\n\n")
     (insert "\tuint8_t layer = biton32(state);\n")
     (insert "\tswitch(layer) {\n")
-    (cl-dolist (layer (mugur--keymap-layers (car (mugur--keymaps-all))))
+    (cl-dolist (layer (mugur--keymap-layers keymap))
       (insert (format "\t\tcase %s:\n" (mugur--layer-name layer)))
       (awhen (mugur--layer-leds layer)
         (cl-dotimes (i (length it))
@@ -741,13 +753,14 @@ and orientation."
                       "no")))))
 
 ;;;###autoload
-(defun mugur-generate-keymap (keymap)
+(defun mugur-generate (keymap)
+  (interactive)
   (mugur--generate-keymap-file keymap)
   (mugur--generate-config-file keymap)
   (mugur--generate-rules-file  keymap))
 
 ;;;###autoload
-(defun mugur-make-keymap (keymap)
+(defun mugur-make (keymap)
   (interactive)
   (progn
     (let ((b (generate-new-buffer "make mykeyboard")))
@@ -762,32 +775,35 @@ and orientation."
       (switch-to-buffer "make mykeyboard"))))
 
 (defun mugur--select-keymap ()
-  (let* ((keymap
-          (completing-read "Select-keymap: "
-                           (mapcar (lambda (keymap)
-                                (format "%s - %s"
-                                        (mugur--keymap-name keymap)
-                                        (mugur--keymap-keyboard keymap)))
-                              (mugur--keymaps-all))))
-         (selection (and keymap (s-split "-" keymap)))
-         (name (and selection (s-trim (car selection))))
-         (keyboard (and keymap (s-trim (cadr selection)))))
-    (when (and name keyboard)
-      (let* ((keyboard-maps
-              (cl-find keyboard (mugur--keymaps-all)
-                       :key #'mugur--keymap-keyboard
-                       :test #'string-equal))
-             (keyboard-keymap
-              (when keyboard-maps
-                (if (listp keyboard-maps)
-                    (cl-find name
-                             :key #'mugur--keymap-name
-                             :test #'string-equal)
-                  keyboard-maps))))
-        keyboard-keymap))))
+  (if (= (length (mugur--keymaps-all))
+         1)
+      (car (mugur--keymaps-all))   
+    (let* ((keymap
+            (completing-read "Select-keymap: "
+                             (mapcar (lambda (keymap)
+                                  (format "%s - %s"
+                                          (mugur--keymap-name keymap)
+                                          (mugur--keymap-keyboard keymap)))
+                                (mugur--keymaps-all))))
+           (selection (and keymap (s-split "-" keymap)))
+           (name (and selection (s-trim (car selection))))
+           (keyboard (and keymap (s-trim (cadr selection)))))
+      (when (and name keyboard)
+        (let* ((keyboard-maps
+                (cl-find keyboard (mugur--keymaps-all)
+                         :key #'mugur--keymap-keyboard
+                         :test #'string-equal))
+               (keyboard-keymap
+                (when keyboard-maps
+                  (if (listp keyboard-maps)
+                      (cl-find name
+                               :key #'mugur--keymap-name
+                               :test #'string-equal)
+                    keyboard-maps))))
+          keyboard-keymap)))))
 
 ;;;###autoload
-(defun mugur-flash-keymap ()
+(defun mugur-flash ()
   (interactive)
   (let* ((keymap (mugur--select-keymap))
          (hex (format "%s/.build/%s_%s.hex"
@@ -803,9 +819,9 @@ and orientation."
 ;;;###autoload
 (defun mugur-build ()
   (interactive)
-  (let ((keymap (mugur--select-keymap)))    
-    (mugur-generate-keymap keymap)
-    (mugur-make-keymap   keymap)))
+  (let ((keymap (mugur--select-keymap)))
+    (mugur-generate keymap)
+    (mugur-make   keymap)))
 
 (provide 'mugur)
 
