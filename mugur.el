@@ -586,6 +586,39 @@ macros."
       (insert "};\n\n"))
     (buffer-string)))
 
+(defun mugur--c-matrix-init-user ()
+  "Runs just one time when the keyboard inits.
+Nothing else to add here at the moment."
+  "void matrix_init_user(void) {
+#ifdef RGBLIGHT_COLOR_LAYER_0
+  rgblight_setrgb(RGBLIGHT_COLOR_LAYER_0);
+#endif
+};
+
+")
+
+(defun mugur--c-layer-state-set-user (keymap)
+  "Runs whenever there is a layer state change."
+  (with-temp-buffer
+    (insert "layer_state_t layer_state_set_user(layer_state_t state) {\n")
+    (insert "\tergodox_board_led_off();\n")
+    (insert "\tergodox_right_led_1_off();\n")
+    (insert "\tergodox_right_led_2_off();\n")
+    (insert "\tergodox_right_led_3_off();\n\n")
+    (insert "\tuint8_t layer = biton32(state);\n")
+    (insert "\tswitch(layer) {\n")
+    (cl-dolist (layer (mugur--keymap-layers (car (mugur--keymaps-all))))
+      (insert (format "\t\tcase %s:\n" (mugur--layer-name layer)))
+      (awhen (mugur--layer-leds layer)
+        (cl-dotimes (i (length it))
+          (when (= (nth i it) 1)
+            (insert (format "\t\t\tergodox_right_led_%s_on();\n" i)))))
+      (insert "\t\t\tbreak;\n"))
+    (insert "\t}\n")
+    (insert "\treturn state;\n")
+    (insert "};\n\n")
+    (buffer-string)))
+
 (defun mugur--keyboard-layout (keymap layer)
   "Return the correct keyboard layout based on the LAYER keyboard
 and orientation."
@@ -642,7 +675,9 @@ and orientation."
     (insert (mugur--c-combos-key-combos   (mugur--keymap-combos keymap)))
     (insert (mugur--c-combos-process-combo-event (mugur--keymap-combos keymap)))    
     (insert (mugur--c-keymaps             keymap))
-    (insert (mugur--c-process-record-user (mugur--keymap-macros keymap)))))
+    (insert (mugur--c-process-record-user (mugur--keymap-macros keymap)))
+    (insert (mugur--c-matrix-init-user))
+    (insert (mugur--c-layer-state-set-user keymap))))
 
 (defun mugur--generate-config-file (keymap)
   (with-temp-file (mugur--c-file-path
