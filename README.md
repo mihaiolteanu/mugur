@@ -1,9 +1,10 @@
 # Overview
-
-A short and simplified example,
+Mugur is a high-level mini-language for configuring and generating keymaps for
+[qmk-powered keyboards](https://beta.docs.qmk.fm/). The list of currently supported keyboards an be
+found in the /layouts folder.
 
 ```emacs-lisp
-(mugur-keymap "my keymap" "5plus2"
+(mugur-keymap "example keymap" "5plus2"
   :tapping-term 200
   :layers
   '(("base"
@@ -73,6 +74,8 @@ symbols)`, which will switch to the `symbols` layer when tapped twice.
 of keys, modifier keys or strings with this combination. For example, `(M-x)
 "switch to bu" enter` will call the `M-x` emacs command, then it will fill out
 some text and then press Enter.
+
+# Keyboard combos and user-named shortcuts
 
 ## Combos ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/feature_combo))
 
