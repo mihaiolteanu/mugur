@@ -52,8 +52,8 @@ punctuation marks, commands (like enter) and mouse keys. Most of them can be
 specified as is, like (x), (enter) or (^) but some, like the open paranthesis
 for example, has to be specified either as a string, like ("(") or
 (lparens). The full list of supported keycodes can be checked out by calling
-`mugur-keycodes`. The right hand side on that list corresponds to the qmk's [simple
-keycodes](https://beta.docs.qmk.fm/using-qmk/simple-keycodes/keycodes) list, but without the KC_ prefix.
+`mugur-doc-keycodes`. The right hand side on that list corresponds to the qmk's
+[simple keycodes](https://beta.docs.qmk.fm/using-qmk/simple-keycodes/keycodes) list, but without the KC_ prefix.
 
 ## Send keycode when tapped, act like Modifier when held
 
@@ -65,7 +65,7 @@ keys that act as a normal key when tapped but like a modifier key when held.
 For example, `(C a)` will send `a` when tapped (pressed and released) and will
 act like the Control key (C key in Emacs-speak) when held. The other modifiers
 are M, G (win), and S (Shift). Combinations like C-M, C-M-S or C-M-G are also
-possible. Consult the `mugur-keycodes` list for the supported modifiers.
+possible. Consult the `mugur-doc-keycodes` list for the supported modifiers.
 
 Be careful, though. The modifier key has to be in uppercase and has to be the
 first in the list, otherwise `(c a)` means a totally different thing.
@@ -85,8 +85,8 @@ qmk page: [Layers](
 
 These keys can act like a normal key when tapped, but can momentarily switch to
 a given layer when held, for example. There are a lot of variants for these
-layer-switching keys. Check out the `mugur-layer-switching` or the official qmk
-documentation linked above.
+layer-switching keys. Check out the `mugur-doc-layer-switching` or the official
+qmk documentation linked above.
 
 Unlike the previous examples where the key definition is context aware, in this
 key, the first element of the key must be one of lt, to, etc. to unanbiguously

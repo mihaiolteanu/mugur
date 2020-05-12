@@ -173,7 +173,7 @@ macros."
           ((and (stringp key) ss) (format "\"%s\"" key))
           (t nil)))
 
-  (defun mugur-keycodes ()
+  (defun mugur-doc-keycodes ()
     "Display all the supported keycodes in a new buffer."
     (interactive)
     (let ((b (get-buffer-create "keycodes.org")))
@@ -332,14 +332,14 @@ macros."
   "Generate code to switch to the given LAYER."
   (if key-or-mod
       (format "%s(%s, %s)"
-                (upcase (symbol-name action))
-                (upcase (symbol-name layer))
-                (mugur--keycode key-or-mod))
+              (upcase (symbol-name action))
+              (upcase (symbol-name layer))
+              (mugur--keycode key-or-mod))
     (format "%s(%s)"
             (upcase (symbol-name action))
             (upcase (symbol-name layer)))))
 
-(defun mugur-layer-switching ()
+(defun mugur-doc-layer-switching ()
   "Display all the layer switching codes in a new buffer."
   (interactive)
   (with-current-buffer (get-buffer-create "layer-switching-codes")
