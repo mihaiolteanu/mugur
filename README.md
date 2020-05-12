@@ -54,7 +54,13 @@ the "5plus2". Each keymap has a name, a keyboard and a list of layers plus
 additional configuration options. You can have as many keymaps as you want and
 then build and flash them independently. The keyboard name must be one of the
 supported keyboards from /layers folder. I only have the Ergodox Ez. Whoever has
-something else, is free to add to the /layers folder.
+something else, is free to add to the /layers folder. 
+
+If you want to start a real keyboard config, see the template for each keyboard in the /layouts
+folder (here is the template for the
+[ergodox](https://github.com/mihaiolteanu/mugur/blob/master/layouts/ergodox-ez.el#L33)
+keyboard, for example). For my own try at configuring my Ergodox, see [my
+init.el file](https://github.com/mihaiolteanu/.emacs.d/blob/master/init.el#L486)
 
 A `mugur-keymap` layer is a list of mugur-keys, as I call them, equal to the
 number of keys on your qmk keyboard. Each mugur-key definition can be as simple
@@ -65,6 +71,26 @@ given key and do different things depending on its type. Mugur generates all the
 C code and files needed by the qmk compiler and offers a simplified and higher
 level interface for all the functionality that qmk offers without having to
 touch any line of C.
+
+# Install
+
+Git clone it, for now, until this package  will be submitted to MELPA.
+```bash
+git clone https://github.com/mihaiolteanu/mugur ~/.emacs.d/lisp/mugur
+```
+
+Add mugur to your load-path
+
+```emacs-lisp
+(add-to-list 'load-path "~/.emacs.d/lisp/mugur")
+```
+
+And set the `mugur-qmk-path` to point to where you've cloned the qmk source
+code.
+
+```emacs-lisp
+(setf mugur-qmk-path "/home/mihai/projects/qmk_firmware")
+```
 
 # Supported keys in the mugur-keymap layers 
 
