@@ -1,4 +1,4 @@
-;;; mugur.el --- A high-level interface for configuring and generating keymaps for qmk-powered keyboards. -*- lexical-binding: t -*-
+;;; mugur.el --- A configurator for Ergodox and other qmk-powered keyboards. -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2020 Mihai Olteanu
 
@@ -34,8 +34,7 @@
   :prefix "mugur-")
 
 (defcustom mugur-qmk-path nil
-  "Path to where you git cloned the qmk firmware source code 
-(https://github.com/qmk/qmk_firmware)"
+  "Path to the qmk firmware source code."
   :type '(string :tag "path")
   :group 'mugur)
 
@@ -45,7 +44,7 @@
 (defconst mugur--supported-keycodes
   '(("Letters and Numbers"
      (a) (b) (c) (d) (e) (f) (g) (h) (i) (j) (k) (l) (m)
-     (n) (o) (p) (q) (r) (s) (t) (u) (v) (w) (x) (y) (z)           
+     (n) (o) (p) (q) (r) (s) (t) (u) (v) (w) (x) (y) (z)
      (1) (2) (3) (4) (5) (6) (7) (8) (9) (0))
     
     ("Function Keys"
@@ -154,7 +153,7 @@
                   (concat "MOD_" it)
                 it))
           (if ss
-              (format "SS_TAP(X_%s)" it)              
+              (format "SS_TAP(X_%s)" it)
             (concat "KC_" it))))))
 
   (cl-defun mugur--key-or-sequence (key &key (ss nil))
@@ -186,7 +185,7 @@ macros."
           (insert (format "* %s\n\n" (car category)))
           (let ((max (cl-loop for entry in (cdr category)
                               maximize (length (mugur--keycode-string entry)))))
-            (dolist (entry (cdr category))            
+            (dolist (entry (cdr category))
               (insert (format (concat "\t%-" (number-to-string max)
                                       "S --> %s\n")
                               (car entry) (mugur--keycode-string entry)))))
@@ -271,7 +270,7 @@ definition."
     (list keycodes ss)))
 
 (defun mugur--combo (combo name)
-  "Create a new mugur--combo named NAME from COMBO."
+  "Create a new `mugur--combo' named NAME from COMBO."
   (let ((c (mugur--combo-define combo)))
     (make-mugur--combo
      :name name
@@ -308,7 +307,7 @@ definition."
          :key-name (format "TD(TD_%s_%s)"
                            (mugur--keycode-raw key1)
                            (or (mugur--keycode-raw key2)
-                               (upcase (symbol-name key2)))) 
+                               (upcase (symbol-name key2))))
          :key1 (mugur--keycode key1)
          :key2 (or (mugur--keycode key2)
                    (upcase (symbol-name key2))))))))
@@ -343,7 +342,9 @@ definition."
              :key #'caar))
 
 (defun mugur--layer-switch (action layer &optional key-or-mod)
-  "Generate code to switch to the given LAYER."
+  "Generate code to switch to the given LAYER.
+ACTION is one of `mugur--layer-switching-codes', and KEY-OR-MOD
+can be a normal key or a modifier."
   (if key-or-mod
       (format "%s(%s, %s)"
               (upcase (symbol-name action))
@@ -369,7 +370,7 @@ definition."
 ;;;; Keymaps, Layers and Transformations.
 (defun mugur--transform-key (key)
   "Transform a user-supplied KEY to the qmk equivalent.
-This is the workhorse of this package. It transforms each KEY, as
+This is the workhorse of this package.  It transforms each KEY, as
 supplied by the user in the `mugur-keymap' layers into an object
 that can be used to generate the qmk equivalent."
   (pcase key
@@ -432,7 +433,7 @@ containing ones and zeroes."
 (cl-defun mugur--new-keymap (&key name keyboard layers
                                   (tapping-term nil) (combo-term nil)
                                   (force-nkro t)
-                                  (rgblight-enable nil) (rgblight-animations nil) 
+                                  (rgblight-enable nil) (rgblight-animations nil)
                                   (combos nil) (macros nil) (tapdances nil))
   "Create a new keymap with NAME, KEYBOARD type and LAYERS."
   (make-mugur--keymap
@@ -477,7 +478,7 @@ If no leds specification exists, return nil."
   (defun mugur--replace-custom-keys (custom-keys keys)
     "Replace all entries from CUSTOM-KEYS in KEYS."
     (if custom-keys
-        (let ((names (mapcar #'car custom-keys)))      
+        (let ((names (mapcar #'car custom-keys)))
           (mapcar (lambda (key)
                (if (member (car key) names)
                    (cadr (cl-find (car key) custom-keys :key #'car))
@@ -494,7 +495,7 @@ If no leds specification exists, return nil."
                                (rgblight-animations nil)
                                (force-nkro t)
                                (layers nil)
-                               (combos nil)       
+                               (combos nil)
                                (with-keys nil))
     "Define a qmk keymap named NAME for keyboard KEYBOARD."
     (cl-pushnew
@@ -679,7 +680,7 @@ This qmk function runs just one time when the keyboard inits."
 ")
 
 (defun mugur--c-layer-state-set-user (keymap)
-  "Generate the keymap.c layer_state_set_user function.
+  "Generate the keymap.c layer_state_set_user function using KEYMAP.
 This qmk function runs whenever there is a layer state change."
   (with-temp-buffer
     (insert "layer_state_t layer_state_set_user(layer_state_t state) {\n")
@@ -732,7 +733,7 @@ different from keyboard to keyboard."
 (defun mugur--c-keymaps (keymap)
   "Generate the qmk keymaps matrix based on KEYMAP.
 The keymaps matrix contains all the layers and keys."
-  (with-temp-buffer  
+  (with-temp-buffer
     (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
     (insert
      (cl-reduce
@@ -831,7 +832,7 @@ The files include keymap.c, config.h and rules.mk."
 ;;;###autoload
 (defun mugur-make (&optional keymap)
   "Call make on the selected KEYMAP.
-Opens a new compilation-mode buffer to view the results."
+Opens a new `compilation-mode' buffer to view the results."
   (interactive)
   (unless keymap
     (setf keymap (mugur--select-keymap)))
@@ -849,9 +850,11 @@ Opens a new compilation-mode buffer to view the results."
       (switch-to-buffer "make mykeyboard"))))
 
 (defun mugur--select-keymap ()
+  "Let the user select a keymap.
+If only one is available, return that instead."
   (if (= (length (mugur--keymaps-all))
          1)
-      (car (mugur--keymaps-all))   
+      (car (mugur--keymaps-all))
     (let* ((keymap
             (completing-read "Select-keymap: "
                              (mapcar (lambda (keymap)
@@ -878,6 +881,7 @@ Opens a new compilation-mode buffer to view the results."
 
 ;;;###autoload
 (defun mugur-flash (&optional keymap)
+  "Flash the KEYMAP."
   (interactive)
   (unless keymap
     (setf keymap (mugur--select-keymap)))
@@ -893,6 +897,7 @@ Opens a new compilation-mode buffer to view the results."
 
 ;;;###autoload
 (defun mugur-build (&optional keymap)
+  "Build the KEYMAP (generate and make)."
   (interactive)
   (unless keymap
     (setf keymap (mugur--select-keymap)))
