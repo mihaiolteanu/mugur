@@ -701,6 +701,17 @@ This qmk function runs whenever there is a layer state change."
     (insert "};\n\n")
     (buffer-string)))
 
+(defun mugur--keyboard-layouts-folder ()
+  "Return the path where the layouts might be located."
+  (let* ((library-path (file-name-directory (locate-library "mugur")))
+         (layouts-folder (concat library-path
+                                 (file-name-as-directory "layouts"))))
+    (if (file-exists-p layouts-folder)
+        ;; Package might have been git cloned directly.
+        layouts-folder
+      ;; Installed from melpa.
+      library-path)))
+
 (defun mugur--keyboard-layout (keymap layer)
   "Find the LAYER layout (horizontal/vertical) for this KEYMAP.
 A layout is just a template containing all the keys and is
@@ -708,9 +719,11 @@ different from keyboard to keyboard."
   (let* ((keyboard (s-replace "_" "-" (mugur--keymap-keyboard keymap))))
     (unless (or mugur-layout-horizontal
                 mugur-layout-vertical)
-      (load-file (format "%slayouts/%s.el"
-                         (file-name-directory (locate-library "mugur"))
-                         keyboard)))
+      (let ((keyboard-layout-file
+             (concat (mugur--keyboard-layouts-folder)
+                     (format "%s.el" keyboard))))
+        (when (file-exists-p keyboard-layout-file)
+          (load-file keyboard-layout-file))))
     (if (equal (mugur--layer-orientation layer)
                'vertical)
         mugur-layout-vertical
