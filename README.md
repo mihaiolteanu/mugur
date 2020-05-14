@@ -227,6 +227,20 @@ happens when you press two keys at the same time.
 In the above case, pressing `left` and `right` and the same time will send the
 `escape` key and pressing `x` and `y` will send C-x followed by "now".
 
+## Emacs functions directly in the key definition (under dev)
+
+**(fbound-emacs-symbol)**
+
+Specify an fbound symbol (a function name) directly in the key definition. Mugur
+keeps an internal list of exotic and unbound key sequences (kbd's) which it can
+bind to the functions specified in the layers definition.
+
+That is, you specify (sp-next-sexp) as a key definition, for example, mugur finds
+an available key sequence, say C-F22,, and generates the according C keycode for the
+qmk keyboard. When you flash your keyboard, mugur generates an .el file that
+contains bind-key forms for all such keys and loads this file every time you
+load the mugur package.
+
 # Layer general config options
 
 These two options can be specified anywhere after the layer name in the
