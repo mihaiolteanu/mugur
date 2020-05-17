@@ -1,4 +1,4 @@
-;;; mugur.el --- A configurator for Ergodox and other qmk-powered keyboards. -*- lexical-binding: t -*-
+;;; mugur.el --- A configurator for Ergodox and other qmk-powered keyboards -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2020 Mihai Olteanu
 
