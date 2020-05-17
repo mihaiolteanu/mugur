@@ -86,6 +86,9 @@
      (S "lsft") (G "lgui")
      (C-M "lca") (C-M-S "meh") (C-M-G "hypr"))
 
+    ("Quantum Keycodes"
+     (reset) (debug) (eeprom-reset "eeprom_reset"))
+    
     ("Commands"
      (insert) (home) (prior "pgup") (delete) (end) (next "pgdown")
      (right) (left) (down) (up))
@@ -149,10 +152,15 @@
   "Is KEY one of empty or transparent keys?"
   (mugur--key-in-category-p "Special Keys" key))
 
+(defun mugur--quantum-keycode-p (key)
+  "Is KEY a quantum keybode?"
+  (mugur--key-in-category-p "Quantum Keycodes" key))
+
 (cl-defun mugur--keycode (key &key (ss nil) (mod nil))
   "Return the KEY keycode usable in the C keymap array."
   (awhen (mugur--keycode-raw key)
-    (if (mugur--special-key-p key)
+    (if (or (mugur--special-key-p key)
+            (mugur--quantum-keycode-p key))
         it
       (if (mugur--modifier-key-p key)
           (if ss
