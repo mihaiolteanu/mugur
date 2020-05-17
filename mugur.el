@@ -4,7 +4,7 @@
 
 ;; Author: Mihai Olteanu <mihai_olteanu@fastmail.fm>
 ;; Version: 1.0
-;; Package-Requires: ((emacs "26.1") (s "1.12.0"))
+;; Package-Requires: ((emacs "26.1") (s "1.12.0") (anaphora "1.0.4"))
 ;; Keywords: multimedia
 ;; URL: https://github.com/mihaiolteanu/mugur
 
@@ -30,6 +30,7 @@
 ;;; Code:
 
 (require 's)
+(require 'anaphora)
 
 (defgroup mugur ()
   "qmk keyboard configurator"
