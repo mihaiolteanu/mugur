@@ -464,6 +464,10 @@ that can be used to generate the qmk equivalent."
     ((and `(,key)
           (guard (mugur--key-or-sequence key)))
      (mugur--key-or-sequence key))
+    ((and `(,fn)
+          (guard (mugur--emacs-function-pp fn)))
+     (mugur--transform-key
+      (mugur--emacs-function-kbd (mugur--emacs-function fn))))
     ((and `(,modifier ,key)
           (guard (mugur--modifier-key-p modifier)))
      (mugur--modtap modifier key))
@@ -502,7 +506,8 @@ that can be used to generate the qmk equivalent."
   layers
   combos
   macros
-  tapdances)
+  tapdances
+  emacs-functions)
 
 (cl-defun mugur--new-layer (name index keys &key (leds nil) (orientation 'horizontal))
   "Create a new layer named NAME.
@@ -520,7 +525,8 @@ containing ones and zeroes."
                                   (tapping-term nil) (combo-term nil)
                                   (force-nkro t)
                                   (rgblight-enable nil) (rgblight-animations nil)
-                                  (combos nil) (macros nil) (tapdances nil))
+                                  (combos nil) (macros nil) (tapdances nil)
+                                  (emacs-functions nil))
   "Create a new keymap with NAME, KEYBOARD type and LAYERS."
   (make-mugur--keymap
    :name name
@@ -533,7 +539,8 @@ containing ones and zeroes."
    :layers layers
    :combos combos
    :macros macros
-   :tapdances tapdances))
+   :tapdances tapdances
+   :emacs-functions emacs-functions))
 
 (defconst mugur--keymaps nil
   "List of all the user defined keymaps.")
@@ -986,7 +993,8 @@ If only one is available, return that instead."
                           "flash mykeyboard"
                           "wally-cli"
                           hex)
-           (switch-to-buffer "flash mykeyboard"))))
+           (switch-to-buffer "flash mykeyboard")))
+  (mugur--create-keybindings-file keymap))
 
 ;;;###autoload
 (defun mugur-build (&optional keymap)
