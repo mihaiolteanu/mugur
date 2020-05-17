@@ -102,99 +102,103 @@
     ("Special Keys"
      (--- "_x_") (() "___"))))
 
-(let ((mugur--keycodes (make-hash-table :test 'equal)))
-  (defun mugur--keycode-string (keycode)
-    "Transform the KEYCODE based on the supported keycodes."
-    (if (= (length keycode) 2)
-        (upcase (cadr keycode))
-      (if (numberp (car keycode))
-          (number-to-string (car keycode))
-        (symbol-name (car keycode)))))
-  
-  (defun mugur--set-keycodes ()
-    "Add all the keycodes into a hashtable."
-    (dolist (categories mugur--supported-keycodes)
-      (dolist (entry (cdr categories))
-          (puthash (car entry)
-                   (upcase (mugur--keycode-string entry))
-                   mugur--keycodes))))
+(defconst mugur--keycodes nil
+  "Hash table with all the user available keycodes and their qmk
+  equivalents.")
 
-  (defun mugur--keycode-raw (key)
-    "Return the raw keycode for KEY."
-    (if (not (hash-table-empty-p mugur--keycodes))
-        (awhen (gethash key mugur--keycodes)
-          it)
-      ;; First call, update the hash table.
-      (mugur--set-keycodes)
-      (mugur--keycode-raw key)))
+(defun mugur--keycode-string (keycode)
+  "Transform the KEYCODE based on the supported keycodes."
+  (if (= (length keycode) 2)
+      (upcase (cadr keycode))
+    (if (numberp (car keycode))
+        (number-to-string (car keycode))
+      (symbol-name (car keycode)))))
 
-  (defun mugur--key-in-category-p (category key)
-    "Return t if KEY is in the given CATEGORY."
-    (cl-find key
-     (cdr (cl-find category
-                   mugur--supported-keycodes
-                   :test #'string-equal :key #'car))
-     :key #'car))
+(defun mugur--set-keycodes ()
+  "Add all the keycodes into a hashtable."
+  (setf mugur--keycodes (make-hash-table :test 'equal))
+  (dolist (categories mugur--supported-keycodes)
+    (dolist (entry (cdr categories))
+      (puthash (car entry)
+               (upcase (mugur--keycode-string entry))
+               mugur--keycodes))))
 
-  (defun mugur--modifier-key-p (key)
-    "Is KEY a modifier key, like C, M or G?"
-    (mugur--key-in-category-p "Modifiers" key))
-  
-  (defun mugur--special-key-p (key)
-    "Is KEY one of empty or transparent keys?"
-    (mugur--key-in-category-p "Special Keys" key))
-  
-  (cl-defun mugur--keycode (key &key (ss nil) (mod nil))
-    "Return the KEY keycode usable in the C keymap array."
-    (awhen (mugur--keycode-raw key)
-      (if (mugur--special-key-p key)
-          it
-        (if (mugur--modifier-key-p key)
-            (if ss
-                (concat "SS_" it)
-              (if mod
-                  (concat "MOD_" it)
-                it))
+(defun mugur--keycode-raw (key)
+  "Return the raw keycode for KEY."
+  (if mugur--keycodes
+      (awhen (gethash key mugur--keycodes)
+        it)
+    ;; First call, update the hash table.
+    (mugur--set-keycodes)
+    (mugur--keycode-raw key)))
+
+(defun mugur--key-in-category-p (category key)
+  "Return t if KEY is in the given CATEGORY."
+  (cl-find key
+           (cdr (cl-find category
+                         mugur--supported-keycodes
+                         :test #'string-equal :key #'car))
+           :key #'car))
+
+(defun mugur--modifier-key-p (key)
+  "Is KEY a modifier key, like C, M or G?"
+  (mugur--key-in-category-p "Modifiers" key))
+
+(defun mugur--special-key-p (key)
+  "Is KEY one of empty or transparent keys?"
+  (mugur--key-in-category-p "Special Keys" key))
+
+(cl-defun mugur--keycode (key &key (ss nil) (mod nil))
+  "Return the KEY keycode usable in the C keymap array."
+  (awhen (mugur--keycode-raw key)
+    (if (mugur--special-key-p key)
+        it
+      (if (mugur--modifier-key-p key)
           (if ss
-              (format "SS_TAP(X_%s)" it)
-            (concat "KC_" it))))))
+              (concat "SS_" it)
+            (if mod
+                (concat "MOD_" it)
+              it))
+        (if ss
+            (format "SS_TAP(X_%s)" it)
+          (concat "KC_" it))))))
 
-  (cl-defun mugur--key-or-sequence (key &key (ss nil))
-    "Generate simple keys or key sequences, like M-x or C-M-a.
+(cl-defun mugur--key-or-sequence (key &key (ss nil))
+  "Generate simple keys or key sequences, like M-x or C-M-a.
 If SS is t, generate the key sequence as needed by SEND_STRING
 macros."
-    (cond ((awhen (mugur--keycode key :ss ss) it))
-          ((s-contains? "-" (if (symbolp key)
-                                (symbol-name key)
-                              ""))
-           (let* ((s (s-split "-" (symbol-name key)))
-                  (prefix (s-join "-" (butlast s))))
-             (if (mugur--modifier-key-p (intern prefix))
-                 (mugur--modifier+key (intern prefix)
-                               (intern (car (last s)))
-                               :ss ss)
-               nil)))
-          ((and (stringp key) ss) (format "\"%s\"" key))
-          (t nil)))
+  (cond ((awhen (mugur--keycode key :ss ss) it))
+        ((s-contains? "-" (if (symbolp key)
+                              (symbol-name key)
+                            ""))
+         (let* ((s (s-split "-" (symbol-name key)))
+                (prefix (s-join "-" (butlast s))))
+           (if (mugur--modifier-key-p (intern prefix))
+               (mugur--modifier+key (intern prefix)
+                                    (intern (car (last s)))
+                                    :ss ss)
+             nil)))
+        ((and (stringp key) ss) (format "\"%s\"" key))
+        (t nil)))
 
-  (defun mugur-doc-keycodes ()
-    "Display all the supported keycodes in a new buffer."
-    (interactive)
-    (let ((b (get-buffer-create "keycodes.org")))
-      (with-current-buffer b
-          (org-mode)
-        (erase-buffer)
-        (dolist (category mugur--supported-keycodes)
-          (insert (format "* %s\n\n" (car category)))
-          (let ((max (cl-loop for entry in (cdr category)
-                              maximize (length (mugur--keycode-string entry)))))
-            (dolist (entry (cdr category))
-              (insert (format (concat "\t%-" (number-to-string max)
-                                      "S --> %s\n")
-                              (car entry) (mugur--keycode-string entry)))))
-          (insert "\n"))
-        (goto-char (point-min)))
-      (switch-to-buffer b))))
+(defun mugur-doc-keycodes ()
+  "Display all the supported keycodes in a new buffer."
+  (interactive)
+  (let ((b (get-buffer-create "keycodes.org")))
+    (with-current-buffer b
+      (org-mode)
+      (erase-buffer)
+      (dolist (category mugur--supported-keycodes)
+        (insert (format "* %s\n\n" (car category)))
+        (let ((max (cl-loop for entry in (cdr category)
+                            maximize (length (mugur--keycode-string entry)))))
+          (dolist (entry (cdr category))
+            (insert (format (concat "\t%-" (number-to-string max)
+                                    "S --> %s\n")
+                            (car entry) (mugur--keycode-string entry)))))
+        (insert "\n"))
+      (goto-char (point-min)))
+    (switch-to-buffer b)))
 
 (defun mugur--modtap (mod key)
   "MOD when held, KEY when tapped."
@@ -531,112 +535,119 @@ containing ones and zeroes."
    :macros macros
    :tapdances tapdances))
 
-(let (mugur--keymaps)
-  (defun mugur--leds (layer)
-    "Extract the leds specification from LAYER.
+(defconst mugur--keymaps nil
+  "List of all the user defined keymaps.")
+
+(defun mugur--leds (layer)
+  "Extract the leds specification from LAYER.
 If no leds specification exists, return nil."
-    (if (> (length layer) 2)
-        (if (and (listp (cadr layer))
-                 (= (length (cadr layer)) 3))
-            (cadr layer)
-          (if (and (listp (caddr layer))
-                   (= (length (caddr layer)) 3))
-              (caddr layer)
-            nil))))
+  (if (> (length layer) 2)
+      (if (and (listp (cadr layer))
+               (= (length (cadr layer)) 3))
+          (cadr layer)
+        (if (and (listp (caddr layer))
+                 (= (length (caddr layer)) 3))
+            (caddr layer)
+          nil))))
 
-  (defun mugur--orientation (layer)
-    "Return the LAYER orientaton."
-    (if (> (length layer) 2)
-        (if (symbolp (cadr layer))
-            (cadr layer)
-          (if (symbolp (caddr layer))
-              (caddr layer)
-            nil))))
-  
-  (defun mugur--keys (layer)
-    "Return the keys list for this LAYER"
-    (car (last layer)))
+(defun mugur--orientation (layer)
+  "Return the LAYER orientaton."
+  (if (> (length layer) 2)
+      (if (symbolp (cadr layer))
+          (cadr layer)
+        (if (symbolp (caddr layer))
+            (caddr layer)
+          nil))))
 
-  (defun mugur--replace-custom-keys (custom-keys keys)
-    "Replace all entries from CUSTOM-KEYS in KEYS."
-    (if custom-keys
-        (let ((names (mapcar #'car custom-keys)))
-          (mapcar (lambda (key)
-               (if (member (car key) names)
-                   (cadr (cl-find (car key) custom-keys :key #'car))
-                 key))
-             keys))
-      ;; Nothing to replace.
-      keys))
+(defun mugur--keys (layer)
+  "Return the keys list for this LAYER"
+  (car (last layer)))
+
+(defun mugur--replace-custom-keys (custom-keys keys)
+  "Replace all entries from CUSTOM-KEYS in KEYS."
+  (if custom-keys
+      (let ((names (mapcar #'car custom-keys)))
+        (mapcar (lambda (key)
+             (if (member (car key) names)
+                 (cadr (cl-find (car key) custom-keys :key #'car))
+               key))
+           keys))
+    ;; Nothing to replace.
+    keys))
 
 ;;;###autoload
-  (cl-defun mugur-keymap (name keyboard &key
-                               (tapping-term 180)
-                               (combo-term 100)
-                               (rgblight-enable nil)
-                               (rgblight-animations nil)
-                               (force-nkro t)
-                               (layers nil)
-                               (combos nil)
-                               (with-keys nil))
-    "Define a qmk keymap named NAME for keyboard KEYBOARD."
-    (cl-pushnew
-     (mugur--new-keymap
-      :name name
-      :keyboard keyboard
-      :tapping-term tapping-term
-      :combo-term combo-term
-      :rgblight-enable rgblight-enable
-      :rgblight-animations rgblight-animations
-      :force-nkro force-nkro
-      :layers
-      (let ((index 0))
-        (mapcar (lambda (layer)
-             (let ((name (car layer))
-                   (leds (mugur--leds layer))
-                   (keys (mugur--keys layer))
-                   (orientation (mugur--orientation layer)))
-               (setf index (+ 1 index))
-               (mugur--new-layer (upcase name) index
-                                 (mugur--transform-keys
-                                  (mugur--replace-custom-keys with-keys keys))
-                                 :leds leds
-                                 :orientation orientation)))
-           layers))
-      
-      :combos
-      (let ((index 0))
-        (mapcar (lambda (combo)
+(cl-defun mugur-keymap (name keyboard &key
+                             (tapping-term 180)
+                             (combo-term 100)
+                             (rgblight-enable nil)
+                             (rgblight-animations nil)
+                             (force-nkro t)
+                             (layers nil)
+                             (combos nil)
+                             (with-keys nil))
+  "Define a qmk keymap named NAME for keyboard KEYBOARD."
+  ;; Prepare for any mugur-key definitions specifying emacs functions.
+  (mugur--emacs-functions-reset)
+  (cl-pushnew
+   (mugur--new-keymap
+    :name name
+    :keyboard keyboard
+    :tapping-term tapping-term
+    :combo-term combo-term
+    :rgblight-enable rgblight-enable
+    :rgblight-animations rgblight-animations
+    :force-nkro force-nkro
+    :layers
+    (let ((index 0))
+      (mapcar (lambda (layer)
+           (let ((name (car layer))
+                 (leds (mugur--leds layer))
+                 (keys (mugur--keys layer))
+                 (orientation (mugur--orientation layer)))
              (setf index (+ 1 index))
-             (mugur--combo combo (format "COMBO_%s" index)))
-           combos))
+             (mugur--new-layer (upcase name) index
+                               (mugur--transform-keys
+                                (mugur--replace-custom-keys with-keys keys))
+                               :leds leds
+                               :orientation orientation)))
+         layers))
+    
+    :combos
+    (let ((index 0))
+      (mapcar (lambda (combo)
+           (setf index (+ 1 index))
+           (mugur--combo combo (format "COMBO_%s" index)))
+         combos))
 
-      :macros
-      (cl-remove-duplicates
-       (apply #'append
-              (mapcar (lambda (layer)
-                   (mugur--extract-macros
-                    (mugur--replace-custom-keys
-                     with-keys (mugur--keys layer))))
-                 layers))
-       :key #'mugur--macro-name
-       :test #'string-equal)
+    :macros
+    (cl-remove-duplicates
+     (apply #'append
+            (mapcar (lambda (layer)
+                 (mugur--extract-macros
+                  (mugur--replace-custom-keys
+                   with-keys (mugur--keys layer))))
+               layers))
+     :key #'mugur--macro-name
+     :test #'string-equal)
 
-      :tapdances
-      (cl-remove-duplicates
-       (apply #'append
-              (mapcar (lambda (layer)
-                   (mugur--tapdance-extract
-                    (mugur--replace-custom-keys
-                     with-keys (mugur--keys layer))))
-                 layers))
-       :key #'mugur--tapdance-name
-       :test #'string-equal))
-     mugur--keymaps))
+    :tapdances
+    (cl-remove-duplicates
+     (apply #'append
+            (mapcar (lambda (layer)
+                 (mugur--tapdance-extract
+                  (mugur--replace-custom-keys
+                   with-keys (mugur--keys layer))))
+               layers))
+     :key #'mugur--tapdance-name
+     :test #'string-equal)
 
-  (defun mugur--keymaps-all ()
-    "Return all the user generated keymaps"
-    mugur--keymaps))
+    :emacs-functions
+    (mugur--emacs-functions))
+   mugur--keymaps))
+
+(defun mugur--keymaps-all ()
+  "Return all the user generated keymaps"
+  mugur--keymaps)
 
 ;;;; C Code Generators
 (defun mugur--c-custom-keycodes (macros)
