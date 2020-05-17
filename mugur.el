@@ -370,6 +370,85 @@ can be a normal key or a modifier."
     (switch-to-buffer (get-buffer-create "layer-switching-codes"))))
 
 
+;; An emacs bound function as a key definition.
+(cl-defstruct mugur--emacs-function
+  kbd fn)
+
+(defconst mugur--emacs-functions nil
+  "List of key definitions containing functions.")
+
+(defconst mugur--available-keys nil
+  "List of available keybindings.")
+
+(defun mugur--emacs-function-pp (fn)
+  (and (symbolp fn)
+       (fboundp fn)))
+
+(defun mugur--emacs-function (fn)
+  "Create a new emacs-function object.
+Reduce the number of available keys if the FN is new."
+  (if mugur--available-keys
+      (let ((kbd (car mugur--available-keys))
+            (prev-count (length mugur--emacs-functions)))
+        (cl-pushnew
+         (make-mugur--emacs-function :kbd kbd
+                                     :fn fn)
+         mugur--emacs-functions
+         :test #'equal
+         :key #'mugur--emacs-function-fn)
+        (when (> (length mugur--emacs-functions)
+                 prev-count)
+          (setf mugur--available-keys
+                (cdr mugur--available-keys)))
+        (cl-find fn mugur--emacs-functions
+                 :key #'mugur--emacs-function-fn
+                 :test #'equal))
+    (error "No more keys available for assigning Emacs
+    functions")))
+
+(defun mugur--emacs-functions-reset ()
+  (setf mugur--emacs-functions nil)
+  (setf mugur--available-keys
+        '((C-F13) (C-F14) (C-F15) (C-F16) (C-F17))))
+
+(defun mugur--available-keys ()
+  mugur--available-keys)
+
+(defun mugur--emacs-functions ()
+  (copy-sequence mugur--emacs-functions))
+
+(defun mugur--bind-emacs-functions (emacs-functions)
+  (cl-dolist (emacs-function emacs-functions)
+    (bind-key (kbd (symbol-name
+                    (car (mugur--emacs-function-kbd
+                        emacs-function))))
+              (symbol-function
+               (mugur--emacs-function-fn emacs-function)))))
+
+(defun mugur--keybindings (emacs-functions)
+  (with-temp-buffer
+    (cl-dolist (emacs-function emacs-functions)
+      (insert (format "(bind-key (kbd \"<%s>\") '%s)\n"
+                      (symbol-name
+                       (car (mugur--emacs-function-kbd
+                           emacs-function)))
+                      (mugur--emacs-function-fn emacs-function))))
+    (buffer-string)))
+
+(defun mugur--create-keybindings-file (keymap)
+  (with-temp-file (concat (file-name-directory
+                           (locate-library "mugur"))
+                          "keybindings.el")
+    (insert (mugur--keybindings
+             (mugur--keymap-emacs-functions
+              keymap)))))
+
+(defun mugur-load-keybindings ()
+  (let ((kbds (concat (file-name-directory (locate-library "mugur"))
+                      "keybindings.el")))
+    (when (file-exists-p kbds)
+      (load-file kbds))))
+
 ;;;; Keymaps, Layers and Transformations.
 (defun mugur--transform-key (key)
   "Transform a user-supplied KEY to the qmk equivalent.
