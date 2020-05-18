@@ -385,68 +385,60 @@ can be a normal key or a modifier."
 
 
 ;; An emacs bound function as a key definition.
-(cl-defstruct mugur--emacs-function
+(cl-defstruct mugur--fn
   kbd fn)
 
-(defconst mugur--emacs-functions nil
+(defconst mugur--fns nil
   "List of key definitions containing functions.")
 
 (defconst mugur--available-keys nil
   "List of available keybindings.")
 
-(defun mugur--emacs-function-pp (fn)
+(defun mugur--fns-reset ()
+  (setf mugur--fns nil)
+  (setf mugur--available-keys
+        '((C-F13) (C-F14) (C-F15) (C-F16) (C-F17))))
+
+(defun mugur--fn-pp (fn)
   (and (symbolp fn)
        (fboundp fn)))
 
-(defun mugur--emacs-function (fn)
-  "Create a new emacs-function object.
+(defun mugur--fn (fn)
+  "Create a new fn object.
 Reduce the number of available keys if the FN is new."
   (if mugur--available-keys
       (let ((kbd (car mugur--available-keys))
-            (prev-count (length mugur--emacs-functions)))
+            (prev-count (length mugur--fns)))
         (cl-pushnew
-         (make-mugur--emacs-function :kbd kbd
+         (make-mugur--fn :kbd kbd
                                      :fn fn)
-         mugur--emacs-functions
+         mugur--fns
          :test #'equal
-         :key #'mugur--emacs-function-fn)
-        (when (> (length mugur--emacs-functions)
+         :key #'mugur--fn-fn)
+        (when (> (length mugur--fns)
                  prev-count)
           (setf mugur--available-keys
                 (cdr mugur--available-keys)))
-        (cl-find fn mugur--emacs-functions
-                 :key #'mugur--emacs-function-fn
+        (cl-find fn mugur--fns
+                 :key #'mugur--fn-fn
                  :test #'equal))
     (error "No more keys available for assigning Emacs
     functions")))
 
-(defun mugur--emacs-functions-reset ()
-  (setf mugur--emacs-functions nil)
-  (setf mugur--available-keys
-        '((C-F13) (C-F14) (C-F15) (C-F16) (C-F17))))
-
 (defun mugur--available-keys ()
   mugur--available-keys)
 
-(defun mugur--emacs-functions ()
-  (copy-sequence mugur--emacs-functions))
+(defun mugur--fns ()
+  (copy-sequence mugur--fns))
 
-(defun mugur--bind-emacs-functions (emacs-functions)
-  (cl-dolist (emacs-function emacs-functions)
-    (bind-key (kbd (symbol-name
-                    (car (mugur--emacs-function-kbd
-                        emacs-function))))
-              (symbol-function
-               (mugur--emacs-function-fn emacs-function)))))
-
-(defun mugur--keybindings (emacs-functions)
+(defun mugur--keybindings (fns)
   (with-temp-buffer
-    (cl-dolist (emacs-function emacs-functions)
+    (cl-dolist (fn fns)
       (insert (format "(bind-key (kbd \"<%s>\") '%s)\n"
                       (symbol-name
-                       (car (mugur--emacs-function-kbd
-                           emacs-function)))
-                      (mugur--emacs-function-fn emacs-function))))
+                       (car (mugur--fn-kbd
+                           fn)))
+                      (mugur--fn-fn fn))))
     (buffer-string)))
 
 (defun mugur--create-keybindings-file (keymap)
@@ -454,7 +446,7 @@ Reduce the number of available keys if the FN is new."
                            (locate-library "mugur"))
                           "keybindings.el")
     (insert (mugur--keybindings
-             (mugur--keymap-emacs-functions
+             (mugur--keymap-fns
               keymap)))))
 
 (defun mugur-load-keybindings ()
@@ -464,16 +456,16 @@ Reduce the number of available keys if the FN is new."
       (load-file kbds))))
 
 
-;;(mugur--emacs-functions-reset)
+;;(mugur--fns-reset)
 ;;(mugur--available-keys)
-;; (mugur--emacs-function 'sp-next-sexp)
-;; (mugur--emacs-function 'sp-previous-sexp)
+;; (mugur--fn 'sp-next-sexp)
+;; (mugur--fn 'sp-previous-sexp)
 
-;; (mugur--bind-emacs-functions
-;;  (mugur--emacs-functions))
+;; (mugur--bind-fns
+;;  (mugur--fns))
 
 ;; (mugur--generate-bind-keys
-;;  (mugur--emacs-functions))
+;;  (mugur--fns))
 
 ;; (symbol-name 'sp-next-sexp)
 ;; (funcall (symbol-function 'car)
@@ -491,9 +483,9 @@ that can be used to generate the qmk equivalent."
           (guard (mugur--key-or-sequence key)))
      (mugur--key-or-sequence key))
     ((and `(,fn)
-          (guard (mugur--emacs-function-pp fn)))
+          (guard (mugur--fn-pp fn)))
      (mugur--transform-key
-      (mugur--emacs-function-kbd (mugur--emacs-function fn))))
+      (mugur--fn-kbd (mugur--fn fn))))
     ((and `(,modifier ,key)
           (guard (mugur--modifier-key-p modifier)))
      (mugur--modtap modifier key))
@@ -532,7 +524,7 @@ that can be used to generate the qmk equivalent."
   combos
   macros
   tapdances
-  emacs-functions)
+  fns)
 
 (cl-defun mugur--new-layer (name index keys &key (leds nil) (orientation 'horizontal))
   "Create a new layer named NAME.
@@ -551,7 +543,7 @@ containing ones and zeroes."
                                   (force-nkro t)
                                   (rgblight-enable nil) (rgblight-animations nil)
                                   (combos nil) (macros nil) (tapdances nil)
-                                  (emacs-functions nil))
+                                  (fns nil))
   "Create a new keymap with NAME, KEYBOARD type and LAYERS."
   (make-mugur--keymap
    :name name
@@ -564,7 +556,7 @@ containing ones and zeroes."
    :combos combos
    :macros macros
    :tapdances tapdances
-   :emacs-functions emacs-functions))
+   :fns fns))
 
 (defconst mugur--keymaps nil
   "List of all the user defined keymaps.")
@@ -618,7 +610,7 @@ If no leds specification exists, return nil."
                              (with-keys nil))
   "Define a qmk keymap named NAME for keyboard KEYBOARD."
   ;; Prepare for any mugur-key definitions specifying emacs functions.
-  (mugur--emacs-functions-reset)
+  (mugur--fns-reset)
   (cl-pushnew
    (mugur--new-keymap
     :name name
@@ -671,8 +663,8 @@ If no leds specification exists, return nil."
      :key #'mugur--tapdance-name
      :test #'string-equal)
 
-    :emacs-functions
-    (mugur--emacs-functions))
+    :fns
+    (mugur--fns))
    mugur--keymaps))
 
 (defun mugur--keymaps-all ()
