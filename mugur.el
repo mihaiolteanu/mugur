@@ -384,7 +384,8 @@ can be a normal key or a modifier."
     (switch-to-buffer (get-buffer-create "layer-switching-codes"))))
 
 
-;; An emacs bound function as a key definition.
+;; fns, keys definitions containing an fbound emacs symbol.  An fbound emacs
+;; symbol as a key definition will be bound to one of the available keys.
 (cl-defstruct mugur--fn
   kbd fn)
 
@@ -392,26 +393,27 @@ can be a normal key or a modifier."
   "List of key definitions containing functions.")
 
 (defconst mugur--available-keys nil
-  "List of available keybindings.")
+  "List of available keys for fns functionality.")
 
 (defun mugur--fns-reset ()
+  "Prepare for another keymap definition."
   (setf mugur--fns nil)
   (setf mugur--available-keys
         '((C-F13) (C-F14) (C-F15) (C-F16) (C-F17))))
 
 (defun mugur--fn-pp (fn)
+  "Is FN a key definition for an emacs function?"
   (and (symbolp fn)
        (fboundp fn)))
 
 (defun mugur--fn (fn)
-  "Create a new fn object.
+  "Create a new FN object.
 Reduce the number of available keys if the FN is new."
   (if mugur--available-keys
       (let ((kbd (car mugur--available-keys))
             (prev-count (length mugur--fns)))
         (cl-pushnew
-         (make-mugur--fn :kbd kbd
-                                     :fn fn)
+         (make-mugur--fn :kbd kbd :fn fn)
          mugur--fns
          :test #'equal
          :key #'mugur--fn-fn)
@@ -426,12 +428,17 @@ Reduce the number of available keys if the FN is new."
     functions")))
 
 (defun mugur--available-keys ()
+  "Return the remaining keys available for fns."
   mugur--available-keys)
 
 (defun mugur--fns ()
+  "Return the already defined fns."
   (copy-sequence mugur--fns))
 
 (defun mugur--keybindings (fns)
+  "Bind-key all fbound symbols in FNS to their respective key.
+This function only returns these bind-key forms as a string but
+does not eval them."
   (with-temp-buffer
     (cl-dolist (fn fns)
       (insert (format "(bind-key (kbd \"<%s>\") '%s)\n"
@@ -442,6 +449,7 @@ Reduce the number of available keys if the FN is new."
     (buffer-string)))
 
 (defun mugur--create-keybindings-file (keymap)
+  "Create the file holding all the bind-key forms for KEYMAP."
   (with-temp-file (concat (file-name-directory
                            (locate-library "mugur"))
                           "keybindings.el")
@@ -450,26 +458,12 @@ Reduce the number of available keys if the FN is new."
               keymap)))))
 
 (defun mugur-load-keybindings ()
+  "Load the last generated keybindingd.el file."
   (let ((kbds (concat (file-name-directory (locate-library "mugur"))
                       "keybindings.el")))
     (when (file-exists-p kbds)
       (load-file kbds))))
 
-
-;;(mugur--fns-reset)
-;;(mugur--available-keys)
-;; (mugur--fn 'sp-next-sexp)
-;; (mugur--fn 'sp-previous-sexp)
-
-;; (mugur--bind-fns
-;;  (mugur--fns))
-
-;; (mugur--generate-bind-keys
-;;  (mugur--fns))
-
-;; (symbol-name 'sp-next-sexp)
-;; (funcall (symbol-function 'car)
-;;          '(a b d))
 
 ;;;; Keymaps, Layers and Transformations.
 (defun mugur--transform-key (key)
@@ -999,7 +993,8 @@ If only one is available, return that instead."
                           "wally-cli"
                           hex)
            (switch-to-buffer "flash mykeyboard")))
-  (mugur--create-keybindings-file keymap))
+  (mugur--create-keybindings-file keymap)
+  (mugur-load-keybindings))
 
 ;;;###autoload
 (defun mugur-build (&optional keymap)
