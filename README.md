@@ -1,76 +1,59 @@
 # Overview
 
-(Disclaimer: This is still in beta. Expect bugs! Issues, suggestions,
-collaborations or thanks are highly welcomed at this stage.)
+Mugur is a configurator for the [ErgoDox EZ](https://ergodox-ez.com/) keyboard
+for Emacs users. It generates all the keymaps, enums, arrays and all the C code
+and related files from a single list of keys defined by the user. A mugur key is
+just a list of symbols, and can simply be `(k)` or `(C k)`,
+`("my_email_address@me.com")` or even `(other-window)` for a simple key, a
+mod-tap, a macro or an fbound emacs symbol. (see all features
+[here](#supported-keys-in-the-mugur-keymap-layers))
 
-Mugur is a high-level mini-language for configuring and generating keymaps for
-[qmk-powered keyboards](https://beta.docs.qmk.fm/). A simplified example to get
-things moving,
+This is a simplified example that defines an Ergodox configuration, that
+contains macros, simple keys, mod-tap, layer changes, combos and even specifying
+emacs fbound symbols (emacs functions) directly in the key definition,
 
 ```emacs-lisp
-(mugur-keymap "example-keymap" "5plus2"
+(mugur-keymap "my config"
+  :tapping-term 200
+  :rgblight-animations nil
 
- ;; Configuration options.
- :tapping-term 200
- :rgblight-animations nil
- 
- ;; Combos and user-defined mugur-keys. 
- :combos '((left right escape))
- :with-keys '((em-split (C-x 3))
-              (em-unsplit (C-x 0)))
+  :combos '((left right escape)
+            (x y (C-x "pressed both x and y at once")))
+  
+  :with-keys '((mybspace (lt numeric bspace))
+               (emacs-split (C-x 3)))
+  
+  :layers
+  '(("base" vertical
+     ((---)   (vol-down) (vol-up) (---) (---) (---) (reset) 
+      (---)      (q)        (w)     (e)   (r)  (t)   (---) 
+      (---)      (a)       (G t)   (M d) (C f) (g) 
+      (osm S)    (z)        (x)     (c)   (v)  (b)   (---) 
+      (---)     (---)      (---)   (---) (---) 
+                  (other-window) (save-buffers-kill-emacs) 
+                                                     (M-x)
+                       (mybspace) (lt numeric space) (tab))
 
- ;; Each one of these is a layer that has a name and a list of mugur-keys
- :layers
- '(;; A shot at a qwerty layout, with the first key doing nothing, the following
-   ;; three acting like w, e and r when tappend but as modifier keys when held,
-   ;; a simple t key and a key that sends y when tapped once but q when tapped
-   ;; twice in quick succession. The last two keys is a backspace that
-   ;; momentarily switches to the numbers layer when held and a key that
-   ;; permanentely switches to the emacs layer.
-   ("base"
-    ((---) (C w) (M e) (G r) (t) (y q)
-             (lt numbers bspace) (to emacs)))
-
-   ;; A non-interesting numbers layer. Notice the last two keys are
-   ;; transparent, they are not assigned to anything, meaning they do whatever
-   ;; the layer above it does.
-   ("numbers"
-    ((1) (2) (3) (4) (5) (0)
-                     ( ) ( )))
-
-   ;; A nice try for a layer to simplify emacs usage. The first two keys are
-   ;; for window management and their names and definition actually comes from
-   ;; the :with-keys parameter. The following two is the beginning and end of
-   ;; line movement functions, followed by a simple TAB and a way to insert
-   ;; some test list that you use often in your developement. The last two keys
-   ;; is chaninging buffers and a means to go back to the base layer.
-   ("emacs"
-    ((em-split) (em-unsplit) (C-a) (C-e) (TAB) ("'(1 2 3)")
-                                       (C-x b) (to base)))))
+     (---) (---) (---)  (---)  (---) (---)  (---)
+     (---)  (y)   (u)    (i)    (o)  (---)  (---)
+            (h)  (C j)  (M k)  (G l)  (p)   (---)
+     (---)  (n)   (m)  (comma) (dot) (---) (osm S)
+                 (---)  (---)  (---) (---)  (---)
+     (emacs-split) (---)
+     (C-z)
+     (escape) (enter) (---))
+  
+  ("numeric"
+    (( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+     ( ) ( ) (1) (2) (3) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+     ( ) ( ) (4) (5) (6) ( )             ( ) ( ) ( ) ( ) ( ) ( )
+     ( ) (0) (7) (8) (9) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
+     ( ) ( ) ( ) ( ) ( )                     ( ) ( ) ( ) ( ) ( )
+                         ( ) ( )     ( ) ( )
+                         (1 2 3)     ("one two three")
+                     ( ) ( ) ( )     ( ) ( ) ( )))))
+                     
 ```
-
-The example defines a new keymap for an hypothetical keyboard with only 7 keys,
-the "5plus2". Each keymap has a name, a keyboard and a list of layers plus
-additional configuration options. You can have as many keymaps as you want and
-then build and flash them independently. The keyboard name must be one of the
-supported keyboards from /layers folder. I only have the Ergodox Ez. Whoever has
-something else, is free to add to the /layers folder. 
-
-If you want to start a real keyboard config, see the template for each keyboard
-in the /layouts folder (here is the template for the
-[ergodox](https://github.com/mihaiolteanu/mugur/blob/master/layouts/ergodox-ez.el#L33)
-keyboard, for example). For my own try at configuring my Ergodox, see [my
-init.el file](https://github.com/mihaiolteanu/.emacs.d/blob/master/init.el#L486)
-
-A `mugur-keymap` layer is a list of mugur-keys, as I call them, equal to the
-number of keys on your qmk keyboard. Each mugur-key definition can be as simple
-as `(k)`, which means send `k` when tapped, or can be a macro like
-`("myemailaddress@me.com")` which will send the respective string. All mugur-keys
-are specified as a lisp list. Mugur implements a mini-language to interpret the
-given key and do different things depending on its type. Mugur generates all the
-C code and files needed by the qmk compiler and offers a simplified and higher
-level interface for all the functionality that qmk offers without having to
-touch any line of C.
 
 # Install
 
@@ -91,6 +74,9 @@ code.
 ```emacs-lisp
 (setf mugur-qmk-path "/home/mihai/projects/qmk_firmware")
 ```
+
+You'll also need [wally-cli](https://github.com/zsa/wally) if you want to flash
+directly from Emacs.
 
 # Supported keys in the mugur-keymap layers 
 
