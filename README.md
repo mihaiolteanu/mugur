@@ -1,12 +1,26 @@
 # Overview
 
-Mugur is a configurator for the [ErgoDox EZ](https://ergodox-ez.com/) keyboard
-for Emacs users. It generates all the keymaps, enums, arrays and all the C code
-and related files from a single list of keys defined by the user. A mugur key is
-just a list of symbols, and can simply be `(k)` or `(C k)`,
-`("my_email_address@me.com")` or even `(other-window)` for a simple key, a
-mod-tap, a macro or an fbound emacs symbol. (see all features
-[here](#supported-keys-in-the-mugur-keymap-layers))
+Mugur is a high-level [ErgoDox EZ](https://ergodox-ez.com/) Configurator for
+Emacs users. 
+
+Mugur offers a consistent interface for all the ErgoDox features.  With the C
+code configurator, for example, if you want to specify an Ergodox macro key, you
+first have to give your key a unique name, then specify what happens when you
+press that key by modifying a specific function by using some specific C macros
+and then finally use this new key in one of your layers. If you want to specify
+a mod-tap key, the modifier keycode is different than if you'd just wanted to
+have a simple modifier key. With mugur, all these features are defined in a
+consistent way by having all the keys be just simple lists, defined directly in
+the layers. No extra code, no extra functions. Mugur interprets these mugur-keys
+differently, depending on the context, and generates the correct C code to
+implement the semantics of it.
+
+A mugur-key is just a list of symbols, and can be `(k)` for sending the `k`
+character when tapped, or `(C k)` for sending `k` when tapped but acting like
+Control when held (mod-tap), a string like `("my_email_address@me.com")`, a key
+combination like `(C-u C-space)`, or even an fbound Emacs function, like
+`(other-window)`, among other things (see all features
+[here](#supported-keys-in-the-mugur-keymap-layers)).
 
 This is a simplified example that defines an Ergodox configuration, that
 contains macros, simple keys, mod-tap, layer changes, combos and emacs fbound
@@ -40,7 +54,7 @@ symbols (emacs functions) in the key definition,
      (---)  (n)   (m)  (comma) (dot) (---) (osm S)
                  (---)  (---)  (---) (---)  (---)
      (emacs-split) (---)
-     (C-z)
+     (C-u C-space)
      (escape) (enter) (---))
   
   ("numeric"
