@@ -104,8 +104,9 @@
      (--- "_x_") (() "___"))))
 
 (defconst mugur--keycodes nil
-  "Hash table with all the user available keycodes and their qmk
-  equivalents.")
+  "Hash table with all the user available keycodes.
+If the keycode only one has entry, then the qmk equivalent has
+the same form.")
 
 (defun mugur--keycode-string (keycode)
   "Transform the KEYCODE based on the supported keycodes."
@@ -402,7 +403,7 @@ can be a normal key or a modifier."
         '((C-F13) (C-F14) (C-F15) (C-F16) (C-F17))))
 
 (defun mugur--fn-pp (fn)
-  "Is FN a key definition for an emacs function?"
+  "Is FN a key definition for an EMACS function?"
   (and (symbolp fn)
        (fboundp fn)))
 
@@ -437,7 +438,7 @@ Reduce the number of available keys if the FN is new."
 
 (defun mugur--keybindings (fns)
   "Bind-key all fbound symbols in FNS to their respective key.
-This function only returns these bind-key forms as a string but
+This function only returns these `bind-key' forms as a string but
 does not eval them."
   (with-temp-buffer
     (cl-dolist (fn fns)
@@ -449,7 +450,7 @@ does not eval them."
     (buffer-string)))
 
 (defun mugur--create-keybindings-file (keymap)
-  "Create the file holding all the bind-key forms for KEYMAP."
+  "Create the file holding all the `bind-key' forms for KEYMAP."
   (with-temp-file (concat (file-name-directory
                            (locate-library "mugur"))
                           "keybindings.el")
@@ -577,7 +578,7 @@ If no leds specification exists, return nil."
           nil))))
 
 (defun mugur--keys (layer)
-  "Return the keys list for this LAYER"
+  "Return the keys list for this LAYER."
   (car (last layer)))
 
 (defun mugur--replace-custom-keys (custom-keys keys)
@@ -662,7 +663,7 @@ If no leds specification exists, return nil."
    mugur--keymaps))
 
 (defun mugur--keymaps-all ()
-  "Return all the user generated keymaps"
+  "Return all the user generated keymaps."
   mugur--keymaps)
 
 ;;;; C Code Generators
@@ -819,7 +820,7 @@ $29, $30, $31, $32, $33, $34,
 $41, $42, $43, $44, $45, $46, $47,
 $55, $56, $57, $58, $59,
                          $65, $66,
-                              $69, 
+                              $69,
                     $71, $72, $73,
 
 $8,  $9,  $10, $11, $12, $13, $14,
@@ -837,12 +838,13 @@ $48, $49, $50, $51, $52, $53, $54,
  $15, $16, $17, $18, $19, $20, $21,   $22, $23, $24, $25, $26, $27, $28,
  $29, $30, $31, $32, $33, $34,             $35, $36, $37, $38, $39, $40,
  $41, $42, $43, $44, $45, $46, $47,   $48, $49, $50, $51, $52, $53, $54,
- $55, $56, $57, $58, $59,                       $60, $61, $62, $63, $64, 
+ $55, $56, $57, $58, $59,                       $60, $61, $62, $63, $64,
                           $65, $66,   $67, $68,
-                               $69,   $70, 
+                               $69,   $70,
                      $71, $72, $73,   $74, $75, $76")
 
 (defun mugur--vertical-orientation-p (layer)
+  "Does this LAYER have vertical orientation?"
   (equal (mugur--layer-orientation layer)
      'vertical))
 
@@ -861,7 +863,7 @@ The keymaps matrix contains all the layers and keys."
                                  (s-trim mugur--layout-vertical)
                                (s-trim mugur--layout-horizontal)))
                      'elt
-                     (cons (mugur--layer-name layer)                             
+                     (cons (mugur--layer-name layer)
                            (mugur--layer-keys layer))))
          (mugur--keymap-layers keymap))))
     (insert "\n};\n\n\n")
@@ -960,7 +962,7 @@ Opens a new `compilation-mode' buffer to view the results."
         (start-process "make" b "make"
                        "-C"
                        mugur-qmk-path
-                       (format "ergodox_ez:%s"                               
+                       (format "ergodox_ez:%s"
                                (mugur--keymap-name keymap))))
       (switch-to-buffer "make mykeyboard"))))
 
@@ -972,7 +974,7 @@ If only one is available, return that instead."
       (car (mugur--keymaps-all))
     (let* ((keymap
             (completing-read "Select-keymap: "
-                             (mapcar #'mugur--keymap-name 
+                             (mapcar #'mugur--keymap-name
                                 (mugur--keymaps-all)))))
       (when keymap
         (cl-find keymap (mugur--keymaps-all)
@@ -986,7 +988,7 @@ If only one is available, return that instead."
   (unless keymap
     (setf keymap (mugur--select-keymap)))
   (let ((hex (format "%s/.build/ergodox_ez_%s.hex"
-                     mugur-qmk-path                     
+                     mugur-qmk-path
                      (mugur--keymap-name keymap))))
     (progn (start-process "flashing"
                           "flash mykeyboard"
