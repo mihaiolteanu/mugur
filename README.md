@@ -56,8 +56,8 @@ then build and flash them independently. The keyboard name must be one of the
 supported keyboards from /layers folder. I only have the Ergodox Ez. Whoever has
 something else, is free to add to the /layers folder. 
 
-If you want to start a real keyboard config, see the template for each keyboard in the /layouts
-folder (here is the template for the
+If you want to start a real keyboard config, see the template for each keyboard
+in the /layouts folder (here is the template for the
 [ergodox](https://github.com/mihaiolteanu/mugur/blob/master/layouts/ergodox-ez.el#L33)
 keyboard, for example). For my own try at configuring my Ergodox, see [my
 init.el file](https://github.com/mihaiolteanu/.emacs.d/blob/master/init.el#L486)
