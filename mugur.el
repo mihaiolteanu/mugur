@@ -218,7 +218,7 @@ macros."
   (s-format "$0($1)" 'elt
             (list (mugur--keycode mod :ss ss)
                   (if ss
-                      (format "\"%s\"" (symbol-name key))
+                      (mugur--keycode key :ss t)
                     (mugur--keycode key)))))
 
 (defun mugur--one-shot-mod (mod)

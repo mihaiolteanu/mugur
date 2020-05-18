@@ -18,11 +18,10 @@
 
 (ert-deftest mugur-test-macro ()
   (cl-dolist (test
-       '((("you do" C-x) "\"you do\" SS_LCTL(\"x\")")
-         ((M-x a)        "SS_LALT(\"x\") SS_TAP(X_A)")
-         ((M-x a b)      "SS_LALT(\"x\") SS_TAP(X_A) SS_TAP(X_B)")
-         ((M-x "this" a) "SS_LALT(\"x\") \"this\" SS_TAP(X_A)")
-         ))
+       '((("you do" C-x) "\"you do\" SS_LCTL(SS_TAP(X_X))")
+         ((M-x a)        "SS_LALT(SS_TAP(X_X)) SS_TAP(X_A)")
+         ((M-x a b)      "SS_LALT(SS_TAP(X_X)) SS_TAP(X_A) SS_TAP(X_B)")
+         ((M-x "this" a) "SS_LALT(SS_TAP(X_X)) \"this\" SS_TAP(X_A)")))
     (should (equal (mugur--macro-define (car test))
                    (cadr test)))))
 
@@ -31,8 +30,8 @@
        '(((a x "whatever") (("KC_A" "KC_X") ("\"whatever\"")))
          ((a x ("whatever")) (("KC_A" "KC_X") ("\"whatever\"")))
          ((a x (x "whatever")) (("KC_A" "KC_X") ("SS_TAP(X_X)" "\"whatever\"")))
-         ((a x C-x) (("KC_A" "KC_X") ("SS_LCTL(\"x\")")))
-         ((a x (C-x "whatever")) (("KC_A" "KC_X") ("SS_LCTL(\"x\")" "\"whatever\"")))))
+         ((a x C-x) (("KC_A" "KC_X") ("SS_LCTL(SS_TAP(X_X))")))
+         ((a x (C-x "whatever")) (("KC_A" "KC_X") ("SS_LCTL(SS_TAP(X_X))" "\"whatever\"")))))
     (should (equal (mugur--combo-define (car test))
                    (cadr test)))))
 
