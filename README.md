@@ -89,7 +89,7 @@ supported features of mugur.
 
 ## Simple keys ([qmk](https://beta.docs.qmk.fm/using-qmk/simple-keycodes))
 
-**(key)**
+**(<key>)**
 
 This defines a simple, normal key, like in a classic keyboard. All the normal keys
 are supported, including all the letters, numbers, punctuation marks, commands
@@ -103,7 +103,7 @@ without the KC_ prefix.
 
 ## Mod-Tap ([qmk](https://beta.docs.qmk.fm/using-qmk/advanced-keycodes/mod_tap))
 
-**(modifier key)**
+**(<modifier> <key>)**
 
 Send the key when tapped, as above, but act like the modifier key when held
 . The modifiers are C, M, G, and S for Control, Alt, Win and Shift. Combinations like C-M,
@@ -115,15 +115,15 @@ otherwise `(c a)` means a totally different thing.
 
 ## Modifier Keys ([qmk](https://beta.docs.qmk.fm/using-qmk/simple-keycodes/feature_advanced_keycodes))
 
-**(modifier-key)**
+**(<modifier-key>)**
 
 Hold down the modifier and press key at the same time. For example, `(C-a)` will
 send `C-a` when tapped. That is, send the `a` keycode with C (Control) pressed.
 
 ## Layers ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/feature_layers))
 
-**(tg layer)**\
-**(lt layer mod-or-key)**
+**(tg <layer>)**\
+**(lt <layer> <mod-or-key>)**
 
 Send key when tapped, momentarily switch to layer when held, for example. There
 are a lot of variants for these layer-switching keys. Check out the
@@ -140,14 +140,14 @@ For example, `(lt symbols a)` will send `a` when tapped and momentarily switch t
 
 ## One Shot Layer ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/one_shot_keys))
 
-**(osl layer)**
+**(osl <layer>)**
 
 Momentarily activates layer until a key is pressed, after which, if goes back to
 the original layer.
 
 ## One Shot Modifier ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/one_shot_keys))
 
-**(osm modifier)**
+**(osm <modifier>)**
 
 Similar to the one shot layer, momentarily activates the modifier key until a key is
 pressed, after which, it deactivates it. Useful for Shift modifiers, for example, to
@@ -155,8 +155,8 @@ insert uppercase letters.
 
 ## Tapdance ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/feature_tap_dance))
 
-**(key1 key2)**\
-**(key layer)**
+**(<key1> <key2>)**\
+**(<key>  <layer>)**
 
 The tapdance feature is vast and featureful. Mugur only supports one simple case
 where you can send two different characters with a single key, for example.
@@ -180,7 +180,7 @@ These two are equivalent macros: `(a b c)`, `("a b c")`.
 
 ## User-defined mugur-key names
 
-**(mykey)**
+**(<mykey>)**
 
 All the above key definitions can be given a name. This is useful when they
 become quite large and are hard to see or destroy the visual look of the layer
@@ -199,7 +199,7 @@ layers. In short, this is just a list of shortcuts.
 
 ## Combos ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/feature_combo))
 
-**(key1 key2 action-or-key)**
+**(<key1> <key2> <action-or-key>)**
 
 Combos are not keys you can use in the `mugur-keymap` layers, but specify what
 happens when you press two keys at the same time.
@@ -215,7 +215,7 @@ In the above case, pressing `left` and `right` and the same time will send the
 
 ## Emacs functions directly in the key definition (under dev)
 
-**(fbound-emacs-symbol)**
+**(<fbound-emacs-symbol>)**
 
 Specify an fbound symbol (a function name) directly in the key definition. Mugur
 keeps an internal list of exotic and unbound key sequences (kbd's) which it can
