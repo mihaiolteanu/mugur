@@ -9,8 +9,8 @@ mod-tap, a macro or an fbound emacs symbol. (see all features
 [here](#supported-keys-in-the-mugur-keymap-layers))
 
 This is a simplified example that defines an Ergodox configuration, that
-contains macros, simple keys, mod-tap, layer changes, combos and even specifying
-emacs fbound symbols (emacs functions) directly in the key definition,
+contains macros, simple keys, mod-tap, layer changes, combos and emacs fbound
+symbols (emacs functions) in the key definition,
 
 ```emacs-lisp
 (mugur-keymap "my config"
