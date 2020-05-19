@@ -915,10 +915,13 @@ The keymaps matrix contains all the layers and keys."
 
 (defun mugur--c-file-path (file)
   "Build the qmk C FILE path based on KEYMAP and KEYBOARD."
-  (concat (file-name-as-directory mugur-qmk-path)
-          (file-name-as-directory "keyboards/ergodox_ez/keymaps")
-          (file-name-as-directory "mugur")
-          file))
+  (let ((mugur-path
+         (concat (file-name-as-directory mugur-qmk-path)
+                 (file-name-as-directory "keyboards/ergodox_ez/keymaps")
+                 (file-name-as-directory "mugur"))))
+    (unless (file-directory-p mugur-path)
+      (make-directory mugur-path))
+    (concat mugur-path file)))
 
 (defun mugur--generate-keymap-file (keymap)
   "Generate the qmk keymap.c file for KEYMAP."
