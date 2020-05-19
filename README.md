@@ -5,15 +5,14 @@ Emacs users.
 
 Mugur offers a consistent interface for all the ErgoDox features.  With the C
 code configurator, for example, if you want to specify an Ergodox macro key, you
-first have to give your key a unique name, then specify what happens when you
-press that key by modifying a specific function by using some specific C macros
-and then finally use this new key in one of your layers. If you want to specify
-a mod-tap key, the modifier keycode is different than if you'd just wanted to
-have a simple modifier key. With mugur, all these features are defined in a
+first have to give your key a unique name, then write some C code to implmenet
+this new key, and then finally use it in one of your layers. If you want a
+mod-tap key, the modifier keycode is different than if you'd just wanted to have
+a simple modifier key. With mugur, all these features are defined in a
 consistent way by having all the keys be just simple lists, defined directly in
-the layers. No extra code, no extra functions. Mugur interprets these mugur-keys
+your layers. No extra code, no extra functions. Mugur interprets these mugur-keys
 differently, depending on the context, and generates the correct C code to
-implement the semantics of it.
+implement their semantics.
 
 A mugur-key is just a list of symbols, and can be `(k)` for sending the `k`
 character when tapped, or `(C k)` for sending `k` when tapped but acting like
@@ -27,7 +26,7 @@ contains macros, simple keys, mod-tap, layer changes, combos and emacs fbound
 symbols (emacs functions) in the key definition,
 
 ```emacs-lisp
-(mugur-keymap "my config"
+(mugur-keymap
   :tapping-term 200
   :rgblight-animations nil
 
@@ -266,13 +265,13 @@ can change this behavior by simply adding a `vertical` (or confirm it by adding
 # Configuration options
 
 Besides the actual layers, you can specify a list of additional config options
-for each `mugur-keymap` (you can have as many `mugur-keymaps` as you
-want). These are all implemented as keyword arguments, and include
-`tapping-term`, `combo-term`, `rgblight-enable`, `rgblight-animations` and
-`force-nkro`. The meaning and functionality of these arguments should be checked
-in the [qmk documentation](https://beta.docs.qmk.fm/developing-qmk/qmk-reference/config_options#behaviors-that-can-be-configured). More such config options can be added in the
-future, as the need arises. Open an issue if you need something from the qmk
-extensive list of options.
+for each `mugur-keymap`. These are all implemented as keyword arguments, and
+include `tapping-term`, `combo-term`, `rgblight-enable`, `rgblight-animations`
+and `force-nkro`. The meaning and functionality of these arguments should be
+checked in the [qmk
+documentation](https://beta.docs.qmk.fm/developing-qmk/qmk-reference/config_options#behaviors-that-can-be-configured). More
+such config options can be added in the future, as the need arises. Open an
+issue if you need something from the qmk extensive list of options.
 
 # Generate, build and flash the qmk keyboards
 

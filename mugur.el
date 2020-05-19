@@ -509,7 +509,6 @@ that can be used to generate the qmk equivalent."
   orientation)
 
 (cl-defstruct mugur--keymap
-  name
   tapping-term
   combo-term
   rgblight-enable
@@ -533,7 +532,7 @@ containing ones and zeroes."
    :leds leds
    :orientation orientation))
 
-(cl-defun mugur--new-keymap (&key name layers
+(cl-defun mugur--new-keymap (&key layers
                                   (tapping-term nil) (combo-term nil)
                                   (force-nkro t)
                                   (rgblight-enable nil) (rgblight-animations nil)
@@ -541,7 +540,6 @@ containing ones and zeroes."
                                   (fns nil))
   "Create a new keymap with NAME, KEYBOARD type and LAYERS."
   (make-mugur--keymap
-   :name name
    :tapping-term tapping-term
    :combo-term combo-term
    :rgblight-enable rgblight-enable
@@ -553,12 +551,21 @@ containing ones and zeroes."
    :tapdances tapdances
    :fns fns))
 
-(defconst mugur--keymaps nil
-  "List of all the user defined keymaps.")
+(defconst mugur--keymap nil
+  "The user defined keymaps.")
+
+(defun mugur--keymap ()
+  "Return the user defined keymap."
+  mugur--keymap)
+
+(defun mugur--keymap-set (keymap)
+  "Remember the KEYMAP for later use."
+  (setf mugur--keymap keymap))
 
 (defun mugur--leds (layer)
   "Extract the leds specification from LAYER.
-If no leds specification exists, return nil."
+The leds specification can be given as a second or third argument
+in every layer.  If no leds specification exists, return nil."
   (if (> (length layer) 2)
       (if (and (listp (cadr layer))
                (= (length (cadr layer)) 3))
@@ -569,7 +576,9 @@ If no leds specification exists, return nil."
           nil))))
 
 (defun mugur--orientation (layer)
-  "Return the LAYER orientaton."
+  "Return the LAYER orientaton.
+The orientation can optionally be given in every layer as a
+second or third argument."
   (if (> (length layer) 2)
       (if (symbolp (cadr layer))
           (cadr layer)
@@ -594,8 +603,7 @@ If no leds specification exists, return nil."
     keys))
 
 ;;;###autoload
-(cl-defun mugur-keymap (name &key
-                             (tapping-term 180)
+(cl-defun mugur-keymap (&key (tapping-term 180)
                              (combo-term 100)
                              (rgblight-enable nil)
                              (rgblight-animations nil)
@@ -604,11 +612,10 @@ If no leds specification exists, return nil."
                              (combos nil)
                              (with-keys nil))
   "Define a qmk keymap named NAME for keyboard KEYBOARD."
-  ;; Prepare for any mugur-key definitions specifying emacs functions.
+  ;; Prepare for any mugur-key specifying emacs functions.
   (mugur--fns-reset)
-  (cl-pushnew
+  (mugur--keymap-set
    (mugur--new-keymap
-    :name name
     :tapping-term tapping-term
     :combo-term combo-term
     :rgblight-enable rgblight-enable
@@ -659,12 +666,7 @@ If no leds specification exists, return nil."
      :test #'string-equal)
 
     :fns
-    (mugur--fns))
-   mugur--keymaps))
-
-(defun mugur--keymaps-all ()
-  "Return all the user generated keymaps."
-  mugur--keymaps)
+    (mugur--fns))))
 
 ;;;; C Code Generators
 (defun mugur--c-custom-keycodes (macros)
@@ -869,11 +871,11 @@ The keymaps matrix contains all the layers and keys."
     (insert "\n};\n\n\n")
     (buffer-string)))
 
-(defun mugur--c-file-path (file keymap)
+(defun mugur--c-file-path (file)
   "Build the qmk C FILE path based on KEYMAP and KEYBOARD."
   (concat (file-name-as-directory mugur-qmk-path)
           (file-name-as-directory "keyboards/ergodox_ez/keymaps")
-          (file-name-as-directory keymap)
+          (file-name-as-directory "mugur")
           file))
 
 (defun mugur--generate-keymap-file (keymap)
@@ -882,9 +884,7 @@ The keymaps matrix contains all the layers and keys."
         (macros (mugur--keymap-macros keymap))
         (tapdances (mugur--keymap-tapdances keymap))
         (combos (mugur--keymap-combos keymap)))
-    (with-temp-file (mugur--c-file-path
-                     "keymap.c"
-                     (mugur--keymap-name keymap))
+    (with-temp-file (mugur--c-file-path "keymap.c")
       (insert "#include QMK_KEYBOARD_H\n")
       (insert "#include \"version.h\"\n\n")
       (insert "#define ___ KC_TRNS\n")
@@ -906,9 +906,7 @@ The keymaps matrix contains all the layers and keys."
 
 (defun mugur--generate-config-file (keymap)
   "Generate the qmk config.h file for KEYMAP."
-  (with-temp-file (mugur--c-file-path
-                   "config.h"
-                   (mugur--keymap-name keymap))
+  (with-temp-file (mugur--c-file-path "config.h")
     (insert "#undef TAPPING_TERM\n")
     (insert (format "#define TAPPING_TERM %s\n" (mugur--keymap-tapping-term keymap)))
     (insert (format "#define COMBO_TERM %s\n" (mugur--keymap-combo-term keymap)))
@@ -922,9 +920,7 @@ The keymaps matrix contains all the layers and keys."
 
 (defun mugur--generate-rules-file (keymap)
   "Generate the qmk rules.mk file for KEYMAP."
-  (with-temp-file (mugur--c-file-path
-                   "rules.mk"
-                   (mugur--keymap-name keymap))
+  (with-temp-file (mugur--c-file-path "rules.mk")
     (when (mugur--keymap-tapdances keymap)
       (insert "TAP_DANCE_ENABLE = yes\n"))
     (when (mugur--keymap-combos keymap)
@@ -942,7 +938,7 @@ The keymaps matrix contains all the layers and keys."
 The files include keymap.c, config.h and rules.mk."
   (interactive)
   (unless keymap
-    (setf keymap (mugur--select-keymap)))
+    (setf keymap (mugur--keymap)))
   (mugur--generate-keymap-file keymap)
   (mugur--generate-config-file keymap)
   (mugur--generate-rules-file  keymap))
@@ -953,7 +949,7 @@ The files include keymap.c, config.h and rules.mk."
 Opens a new `compilation-mode' buffer to view the results."
   (interactive)
   (unless keymap
-    (setf keymap (mugur--select-keymap)))
+    (setf keymap (mugur--keymap)))
   (progn
     (let ((b (generate-new-buffer "make mykeyboard")))
       (with-current-buffer b
@@ -962,34 +958,17 @@ Opens a new `compilation-mode' buffer to view the results."
         (start-process "make" b "make"
                        "-C"
                        mugur-qmk-path
-                       (format "ergodox_ez:%s"
-                               (mugur--keymap-name keymap))))
+                       "ergodox_ez:mugur"))
       (switch-to-buffer "make mykeyboard"))))
-
-(defun mugur--select-keymap ()
-  "Let the user select a keymap.
-If only one is available, return that instead."
-  (if (= (length (mugur--keymaps-all))
-         1)
-      (car (mugur--keymaps-all))
-    (let* ((keymap
-            (completing-read "Select-keymap: "
-                             (mapcar #'mugur--keymap-name
-                                (mugur--keymaps-all)))))
-      (when keymap
-        (cl-find keymap (mugur--keymaps-all)
-                 :key #'mugur--keymap-name
-                 :test #'string-equal)))))
 
 ;;;###autoload
 (defun mugur-flash (&optional keymap)
   "Flash the KEYMAP."
   (interactive)
   (unless keymap
-    (setf keymap (mugur--select-keymap)))
-  (let ((hex (format "%s/.build/ergodox_ez_%s.hex"
-                     mugur-qmk-path
-                     (mugur--keymap-name keymap))))
+    (setf keymap (mugur--keymap)))
+  (let ((hex (format "%s/.build/ergodox_ez_mugur.hex"
+                     mugur-qmk-path)))
     (progn (start-process "flashing"
                           "flash mykeyboard"
                           "wally-cli"
@@ -1003,7 +982,7 @@ If only one is available, return that instead."
   "Build the KEYMAP (generate and make)."
   (interactive)
   (unless keymap
-    (setf keymap (mugur--select-keymap)))
+    (setf keymap (mugur--keymap)))
   (mugur-generate keymap)
   (mugur-make keymap))
 
