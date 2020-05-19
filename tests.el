@@ -1,7 +1,7 @@
 (ert-deftest mugur-keycodes-should-not-error ()
-    (dolist (category mugur--supported-keycodes)
-      (dolist (entry (cdr category))
-        (should (mugur--keycode (car entry))))))
+  (dolist (category mugur--supported-keycodes)
+    (dolist (entry (cdr category))
+      (should (mugur--keycode (car entry))))))
 
 (ert-deftest mugur-test-tapdance-p ()
   "Correctly interpret tapdances."
@@ -16,12 +16,15 @@
                      nil)
                    (cadr test)))))
 
-(ert-deftest mugur-test-macro ()
+(ert-deftest mugur-test-macro--define ()
+  "Test the send_string macro defines."
   (cl-dolist (test
        '((("you do" C-x) "\"you do\" SS_LCTL(SS_TAP(X_X))")
          ((M-x a)        "SS_LALT(SS_TAP(X_X)) SS_TAP(X_A)")
          ((M-x a b)      "SS_LALT(SS_TAP(X_X)) SS_TAP(X_A) SS_TAP(X_B)")
-         ((M-x "this" a) "SS_LALT(SS_TAP(X_X)) \"this\" SS_TAP(X_A)")))
+         ((M-x "this" a) "SS_LALT(SS_TAP(X_X)) \"this\" SS_TAP(X_A)")
+         ((C-x 3) "SS_LCTL(SS_TAP(X_X)) SS_TAP(X_3)")
+         ((C-x {) "SS_LCTL(SS_TAP(X_X)) \"{\"")))
     (should (equal (mugur--macro-define (car test))
                    (cadr test)))))
 

@@ -142,23 +142,59 @@ the same form.")
                          :test #'string-equal :key #'car))
            :key #'car))
 
+(defun mugur--letter-or-number-p (key)
+  "Is KEY a letter or a number?"
+  (mugur--key-in-category-p "Letters and Numbers" key))
+
+(defun mugur--function-p (key)
+  "Is KEY a function key, like F12?"
+  (mugur--key-in-category-p "Function Keys" key))
+
+(defun mugur--punctuation-p (key)
+  "Is KEY a punctuation key?"
+  (mugur--key-in-category-p "Punctuation" key))
+
+(defun mugur--shifted-p (key)
+  "Is KEY a shifted key?"
+  (mugur--key-in-category-p "Shifted Keys" key))
+
 (defun mugur--modifier-key-p (key)
   "Is KEY a modifier key, like C, M or G?"
   (mugur--key-in-category-p "Modifiers" key))
+
+(defun mugur--quantum-p (key)
+  "Is KEY a quantum key?"
+  (mugur--key-in-category-p "Quantum Keycodes" key))
+
+(defun mugur--command-p (key)
+  "Is KEY a command key?"
+  (mugur--key-in-category-p "Commands" key))
+
+(defun mugur--media-p (key)
+  "Is KEY a media key?"
+  (mugur--key-in-category-p "Media Keys" key))
+
+(defun mugur--mouse-p (key)
+  "Is KEY a mouse key?"
+  (mugur--key-in-category-p "Mouse Keys" key))
 
 (defun mugur--special-key-p (key)
   "Is KEY one of empty or transparent keys?"
   (mugur--key-in-category-p "Special Keys" key))
 
-(defun mugur--quantum-keycode-p (key)
-  "Is KEY a quantum keybode?"
-  (mugur--key-in-category-p "Quantum Keycodes" key))
+(defun mugur--available-x-code-p (key)
+  "Return t if KEY has an X_ entry in the send_string_keycodes."
+  (or (mugur--letter-or-number-p key)
+      (mugur--function-p key)
+      (mugur--punctuation-p key)
+      (mugur--modifier-key-p key)
+      (mugur--command-p key)))
 
 (cl-defun mugur--keycode (key &key (ss nil) (mod nil))
   "Return the KEY keycode usable in the C keymap array."
   (awhen (mugur--keycode-raw key)
     (if (or (mugur--special-key-p key)
-            (mugur--quantum-keycode-p key))
+            (mugur--quantum-p key))
         it
       (if (mugur--modifier-key-p key)
           (if ss
@@ -167,7 +203,13 @@ the same form.")
                 (concat "MOD_" it)
               it))
         (if ss
-            (format "SS_TAP(X_%s)" it)
+            ;; Tap the X code, if available, or just send the string otherwise.
+            (if (mugur--available-x-code-p key)
+                (format "SS_TAP(X_%s)" it)
+              (format "\"%s\""
+                      (if (symbolp key)
+                          (symbol-name key)
+                        key)))
           (concat "KC_" it))))))
 
 (cl-defun mugur--key-or-sequence (key &key (ss nil))
