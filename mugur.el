@@ -49,9 +49,9 @@
      (1) (2) (3) (4) (5) (6) (7) (8) (9) (0))
     
     ("Function Keys"
-     (F1)  (F2)  (F3)  (F4)  (F5)  (F6)  (F7)  (F8)  (F9)  (F10)
-     (F11) (F12) (F13) (F14) (F15) (F16) (F17) (F18) (F19) (F20)
-     (F21) (F22) (F23) (F24))
+     (f1)  (f2)  (f3)  (f4)  (f5)  (f6)  (f7)  (f8)  (f9)  (f10)
+     (f11) (f12) (f13) (f14) (f15) (f16) (f17) (f18) (f19) (f20)
+     (f21) (f22) (f23) (f24))
 
     ("Punctuation"
      (ENT "enter") (enter) (ESC "escape") (escape) (bspace)
@@ -69,12 +69,12 @@
     ("Shifted Keys"
      (~ "tilde") (! "exclaim") (@ "at")
      (hash) ("#" "hash") ($ "dollar") (% "percent")
-     (^ "circumflex") (& "ampersand") (* "asterix")
+     (^ "circumflex") (& "ampersand") (* "asterisk")
      (lparen "left_paren") (rparen "right_paren")
      ("(" "left_paren") (")" "right_paren")
      (_ "underscore") (+ "plus")
      ({ "left_curly_brace") (} "right_curly_brace")
-     (| "pipe") (: "colon") ("\"" "double_quote") (double-quote "double_quote")
+     (| "pipe") (: "colon") ("\"" "double_quote") (double_quote)
      (< "left_angle_bracket") (> "right_angle_bracket")
      (question) ("?" "question"))
     
@@ -97,7 +97,7 @@
     ("Mouse Keys"
      (ms_up) (ms_down) (ms_left) (ms_right)
      (ms_btn1) (ms_btn2) (ms_btn3) (ms_btn4) (ms_btn5)
-     (ms_wh-up) (ms_wh-down) (ms_wh-left) (ms_wh-right)
+     (ms_wh_up) (ms_wh_down) (ms_wh_left) (ms_wh_right)
      (ms_accel1) (ms_accel2) (ms_accel3))
     
     ("Special Keys"
@@ -442,7 +442,8 @@ can be a normal key or a modifier."
   "Prepare for another keymap definition."
   (setf mugur--fns nil)
   (setf mugur--available-keys
-        '((C-F13) (C-F14) (C-F15) (C-F16) (C-F17))))
+        '((C-f3) (C-f4) (C-f5) (C-f6) (C-f7) (C-f8)
+          (C-f9) (C-f10) (C-f11) (C-f12))))
 
 (defun mugur--fn-pp (fn)
   "Is FN a key definition for an EMACS function?"
