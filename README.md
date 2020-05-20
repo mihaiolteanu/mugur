@@ -17,9 +17,9 @@ implement their semantics.
 A mugur-key is just a list of symbols, and can be `(k)` for sending the `k`
 character when tapped, or `(C k)` for sending `k` when tapped but acting like
 Control when held (mod-tap), a string like `("my_email_address@me.com")`, a key
-combination like `(C-u C-space)`, or even an fbound Emacs function, like
-`(other-window)`, among other things (see all features
-[here](#supported-keys-in-the-mugur-keymap-layers)).
+combination like the often used `(C-u C-space)`, or even an fbound Emacs
+function, like `(other-window)`, among other things (see all features
+[below](#supported-keys-in-the-mugur-keymap-layers)).
 
 This is a simplified example that defines an Ergodox configuration, that
 contains macros, simple keys, mod-tap, layer changes, combos and emacs fbound

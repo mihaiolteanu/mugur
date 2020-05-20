@@ -503,6 +503,7 @@ does not eval them."
 
 (defun mugur-load-keybindings ()
   "Load the last generated keybindingd.el file."
+  (interactive)
   (let ((kbds (concat (file-name-directory (locate-library "mugur"))
                       "keybindings.el")))
     (when (file-exists-p kbds)
