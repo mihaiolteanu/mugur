@@ -21,9 +21,12 @@ combination like the often used `(C-u C-space)`, or even an fbound Emacs
 function, like `(other-window)`, among other things (see all features
 [below](#supported-keys-in-the-mugur-keymap-layers)).
 
-This is a simplified example that defines an Ergodox configuration, that
-contains macros, simple keys, mod-tap, layer changes, combos and emacs fbound
-symbols (emacs functions) in the key definition,
+This is a simplified example that defines an Ergodox configuration, and contains
+macros, simple keys, mod-tap, layer changes, combos and emacs fbound symbols
+(emacs functions). For a more complex example, see the
+[mugur-keymap](https://github.com/mihaiolteanu/.emacs.d/blob/master/init.el#L487)
+configuration from my init.el file, the configuration that I'm using to flash my
+ErgoDox.
 
 ```emacs-lisp
 (mugur-keymap
@@ -70,7 +73,7 @@ symbols (emacs functions) in the key definition,
 
 # Install
 
-Git clone it, for now, until this package  will be submitted to MELPA.
+Git clone it, for now, until this package  will be available from MELPA.
 ```bash
 git clone https://github.com/mihaiolteanu/mugur ~/.emacs.d/lisp/mugur
 ```
@@ -81,8 +84,8 @@ Add mugur to your load-path
 (add-to-list 'load-path "~/.emacs.d/lisp/mugur")
 ```
 
-And set the `mugur-qmk-path` to point to where you've cloned the qmk source
-code.
+Set the `mugur-qmk-path` to point to the location of your [qmk source
+code](https://github.com/qmk/qmk_firmware).
 
 ```emacs-lisp
 (setf mugur-qmk-path "/home/mihai/projects/qmk_firmware")
@@ -226,7 +229,7 @@ happens when you press two keys at the same time.
 In the above case, pressing `left` and `right` and the same time will send the
 `escape` key and pressing `x` and `y` will send C-x followed by "now".
 
-## Emacs functions directly in the key definition (under dev)
+## Emacs functions
 
 **(fbound-emacs-symbol)**
 
@@ -234,11 +237,12 @@ Specify an fbound symbol (a function name) directly in the key definition. Mugur
 keeps an internal list of exotic and unbound key sequences (kbd's) which it can
 bind to the functions specified in the layers definition.
 
-That is, you specify (sp-next-sexp) as a key definition, for example, mugur finds
-an available key sequence, say C-F22,, and generates the according C keycode for the
-qmk keyboard. When you flash your keyboard, mugur generates an .el file that
-contains bind-key forms for all such keys and loads this file every time you
-load the mugur package.
+That is, you specify (sp-next-sexp) as a key definition, for example, mugur
+finds an available key sequence, say C-F5, and puts that in your keymap. When
+you flash your keyboard, mugur generates an .el file that contains bind-key
+forms for all such keys. When flashing, mugur loads this file for you, but when
+you start or restart Emacs you'll have to manually load this file by calling
+`mugur-load-keybindings` in your init.el file or interactively.
 
 # Layer general config options
 
