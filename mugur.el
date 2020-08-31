@@ -885,8 +885,8 @@ This qmk function runs whenever there is a layer state change."
     (insert "};\n\n")
     (buffer-string)))
 
-(defconst mugur--layout-vertical
-  "
+(defconst mugur-ergodox-layout
+  '((vertical . "
 $1,  $2,  $3,  $4,  $5,  $6,  $7,
 $8,  $9,  $10, $11, $12, $13, $14,
 $15, $16, $17, $18, $19, $20,
@@ -904,9 +904,7 @@ $66, $67, $68, $69, $70,
                          $71, $72,
                               $73,
                     $74, $75, $76")
-
-(defconst mugur--layout-horizontal
-  "
+  (horizontal . "
  $1,  $2,  $3,  $4,  $5,  $6,  $7,
  $15, $16, $17, $18, $19, $20, $21,
  $29, $30, $31, $32, $33, $34,
@@ -923,12 +921,18 @@ $66, $67, $68, $69, $70,
            $60, $61, $62, $63, $64,
                           $67, $68,
                                $70,
-                     $74, $75, $76")
+                     $74, $75, $76")))
 
 (defun mugur--vertical-orientation-p (layer)
   "Does this LAYER have vertical orientation?"
   (equal (mugur--layer-orientation layer)
      'vertical))
+
+(defun mugur--layout-macro-name (keymap)
+  (let ((keyboard (mugur--keymap-keyboard keymap)))
+        (pcase keyboard
+            ("ergodox_ez" "LAYOUT_ergodox")
+            (_ "LAYOUT"))))
 
 (defun mugur--c-keymaps (keymap)
   "Generate the qmk keymaps matrix based on KEYMAP.
@@ -940,14 +944,15 @@ The keymaps matrix contains all the layers and keys."
       (lambda (item1 item2)
         (concat item1 ", \n\n" item2))
       (mapcar (lambda (layer)
-           (s-format (format "[$0] = LAYOUT_ergodox(\n%s)"
-                             (if (mugur--vertical-orientation-p layer)
-                                 (s-trim mugur--layout-vertical)
-                               (s-trim mugur--layout-horizontal)))
-                     'elt
-                     (cons (mugur--layer-name layer)
-                           (mugur--layer-keys layer))))
-         (mugur--keymap-layers keymap))))
+                (s-format (format "[$0] = %s(\n%s)"
+                                  (mugur--layout-macro-name keymap)
+                                  (s-trim
+                                   (cdr (assoc (mugur--layer-orientation layer)
+                                               (symbol-value (mugur--keymap-layout keymap))))))
+                          'elt
+                          (cons (mugur--layer-name layer)
+                                (mugur--layer-keys layer))))
+              (mugur--keymap-layers keymap))))
     (insert "\n};\n\n\n")
     (buffer-string)))
 
