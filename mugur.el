@@ -628,16 +628,17 @@ containing ones and zeroes."
   "Remember the KEYMAP for later use."
   (setf mugur--keymap keymap))
 
+(defun mugur--leds-p (layer-elt)
+  (and (listp layer-elt) (= (length layer-elt) 3)))
+
 (defun mugur--leds (layer)
   "Extract the leds specification from LAYER.
 The leds specification can be given as a second or third argument
 in every layer.  If no leds specification exists, return nil."
   (if (> (length layer) 2)
-      (if (and (listp (cadr layer))
-               (= (length (cadr layer)) 3))
+      (if (mugur--leds-p (cadr layer))
           (cadr layer)
-        (if (and (listp (caddr layer))
-                 (= (length (caddr layer)) 3))
+        (if (mugur--leds-p (caddr layer))
             (caddr layer)
           nil))))
 
@@ -990,7 +991,8 @@ The keymaps matrix contains all the layers and keys."
       (insert (mugur--c-keymaps keymap))
       (insert (mugur--c-process-record-user macros))
       (insert (mugur--c-matrix-init-user))
-      (insert (mugur--c-layer-state-set-user keymap)))))
+      (when (seq-some #'mugur--layer-leds layers)
+        (insert (mugur--c-layer-state-set-user keymap))))))
 
 (defun mugur--generate-config-file (keymap)
   "Generate the qmk config.h file for KEYMAP."
