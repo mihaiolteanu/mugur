@@ -951,12 +951,12 @@ The keymaps matrix contains all the layers and keys."
     (insert "\n};\n\n\n")
     (buffer-string)))
 
-(defun mugur--c-file-path (file)
+(defun mugur--c-file-path (keymap file)
   "Build the qmk C FILE path based on KEYMAP and KEYBOARD."
   (let ((mugur-path
          (concat (file-name-as-directory mugur-qmk-path)
-                 (file-name-as-directory "keyboards/ergodox_ez/keymaps")
-                 (file-name-as-directory "mugur"))))
+                 (file-name-as-directory (format "keyboards/%s/keymaps" (mugur--keymap-keyboard keymap)))
+                 (file-name-as-directory (mugur--keymap-name keymap)))))
     (unless (file-directory-p mugur-path)
       (make-directory mugur-path))
     (concat mugur-path file)))
@@ -967,7 +967,7 @@ The keymaps matrix contains all the layers and keys."
         (macros (mugur--keymap-macros keymap))
         (tapdances (mugur--keymap-tapdances keymap))
         (combos (mugur--keymap-combos keymap)))
-    (with-temp-file (mugur--c-file-path "keymap.c")
+    (with-temp-file (mugur--c-file-path keymap "keymap.c")
       (insert "#include QMK_KEYBOARD_H\n")
       (insert "#include \"version.h\"\n\n")
       (insert "#define ___ KC_TRNS\n")
@@ -989,7 +989,7 @@ The keymaps matrix contains all the layers and keys."
 
 (defun mugur--generate-config-file (keymap)
   "Generate the qmk config.h file for KEYMAP."
-  (with-temp-file (mugur--c-file-path "config.h")
+  (with-temp-file (mugur--c-file-path keymap "config.h")
     (insert "#undef TAPPING_TERM\n")
     (insert (format "#define TAPPING_TERM %s\n" (mugur--keymap-tapping-term keymap)))
     (insert (format "#define COMBO_TERM %s\n" (mugur--keymap-combo-term keymap)))
@@ -1003,7 +1003,7 @@ The keymaps matrix contains all the layers and keys."
 
 (defun mugur--generate-rules-file (keymap)
   "Generate the qmk rules.mk file for KEYMAP."
-  (with-temp-file (mugur--c-file-path "rules.mk")
+  (with-temp-file (mugur--c-file-path keymap "rules.mk")
     (when (mugur--keymap-tapdances keymap)
       (insert "TAP_DANCE_ENABLE = yes\n"))
     (when (mugur--keymap-combos keymap)
@@ -1041,7 +1041,7 @@ Opens a new `compilation-mode' buffer to view the results."
         (start-process "make" b "make"
                        "-C"
                        mugur-qmk-path
-                       "ergodox_ez:mugur"))
+                       (format "%s:%s" (mugur--keymap-keyboard keymap) (mugur--keymap-name keymap))))
       (switch-to-buffer "make mykeyboard"))))
 
 ;;;###autoload
