@@ -87,7 +87,8 @@
      (reset) (debug) (eeprom-reset "eeprom_reset"))
     
     ("Commands"
-     (insert) (home) (prior "pgup") (delete) (end) (next "pgdown")
+     (pscreen) (pause) (insert) (home)
+     (prior "pgup") (delete) (end) (next "pgdown")
      (right) (left) (down) (up))
 
     ("Media Keys"
@@ -523,7 +524,6 @@ does not eval them."
                       "keybindings.el")))
     (when (file-exists-p kbds)
       (load-file kbds))))
-
 
 ;;;; Keymaps, Layers and Transformations.
 (defun mugur--transform-key (key)
