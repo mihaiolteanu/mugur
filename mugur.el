@@ -650,7 +650,8 @@ second or third argument."
           (cadr layer)
         (if (symbolp (caddr layer))
             (caddr layer)
-          nil))))
+          'horizontal))
+    'horizontal))
 
 (defun mugur--keys (layer)
   "Return the keys list for this LAYER."
