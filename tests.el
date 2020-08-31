@@ -42,7 +42,7 @@
   (cl-dolist (test
        '((()      "___")
          ((c)     "KC_C")
-         ((C)     "LCTL")
+         ((C)     "KC_LCTL")
          ((M-a)   "LALT(KC_A)")
          ((C-M-a) "LCA(KC_A)")
          ((x y)   "TD(TD_X_Y)")
