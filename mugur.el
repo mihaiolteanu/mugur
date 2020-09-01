@@ -1057,8 +1057,10 @@ Opens a new `compilation-mode' buffer to view the results."
   (interactive)
   (unless keymap
     (setf keymap (mugur--keymap)))
-  (let ((hex (format "%s/.build/ergodox_ez_mugur.hex"
-                     mugur-qmk-path)))
+  (let ((hex (format "%s/.build/%s_%s.hex"
+                     mugur-qmk-path
+                     (mugur--keymap-keyboard keymap)
+                     (mugur--keymap-name keymap))))
     (progn (start-process "flashing"
                           "flash mykeyboard"
                           "wally-cli"
