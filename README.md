@@ -29,7 +29,7 @@ configuration from my init.el file, the configuration that I'm using to flash my
 ErgoDox.
 
 ```emacs-lisp
-(mugur-keymap
+(mugur-keymap "ergodox_ez" "mugur"
   :tapping-term 200
   :rgblight-animations nil
 
