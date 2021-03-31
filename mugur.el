@@ -380,31 +380,30 @@
              (format "%s(%s)" total cur))
            (reverse it))))
 
+(defun mugur--qmk-mod (mod)
+  "Transform the mugur `MOD' to the qmk equivalent.
+https://docs.qmk.fm/#/mod_tap"
+  (pcase mod
+    ('C "MOD_LCTL")
+    ('M "MOD_LALT")
+    ('G "MOD_LGUI")
+    ('S "MOD_LSFT")))
+
+(defun mugur--mods (mods)
+  "Return the qmk modifiers if all `MODS' are transformable as such.
+Return nil otherwise."
+  (aand (mapcar #'mugur--qmk-mod mods)
+        (and (not (member nil it))
+             it)))
+
 (defun mugur--qmk-mod-tap (key)
-  (and (listp key)
-       (= (length (intersection (butlast key) '(C M S G)))
-          (length (butlast key)))
-       (let ((kc (mugur--qmk-keycode (car (last key))))
-             (metas (sort (butlast key)
-                          (lambda (a b) (string< (symbol-name a)
-                                            (symbol-name b))))))
-         (and kc
-              (pcase metas
-                ('(C)       (format "LCTL_T(%s)" kc)) ;Control when held, kc when tapped
-                ('(G)       (format "LGUI_T(%s)" kc)) ;GUI when held, kc when tapped
-                ('(M)       (format "LALT_T(%s)" kc)) ;Alt when held, kc when tapped
-                ('(S)       (format "LSFT_T(%s)" kc)) ;Shift when held, kc when tapped
-
-                ('(G S)     (format "SGUI_T(%s)" kc)) ;Shift and GUI when held, kc when tapped
-                ('(C M)     (format "LCA_T(%s)"  kc)) ;Control and Alt when held, kc when tapped
-                ('(M S)     (format "LSA_T(%s)"  kc)) ;Shift and Alt when held, kc when tapped
-                ('(C S)     (format "RCS_T(%s)"  kc)) ;Control and Shift when held, kc when tapped
-
-                ('(C G M)   (format "LCAG_T(%s)" kc)) ;Control, Alt and GUI when held, kc when tapped
-                ('(C M S)   (format "MEH_T(%s)"  kc)) ;Control, Shift and Alt when held, kc when tapped
-
-                ('(C G M S) (format "HYPR_T(%s)" kc)) ;Control, Shift, Alt and GUI when held, kc when tapped
-                )))))
+  (let ((mods (butlast key))
+        (key  (car (last key))))
+    (aand (mugur--mods mods)
+          (print it)
+          (format "MT(%s, %s)"
+                  (mapconcat #'identity it " | ")
+                  (mugur--qmk-keycode key)))))
 
 (defun mugur--qmk-macro-helper (key)
   (aand (or (and (stringp (car key))
