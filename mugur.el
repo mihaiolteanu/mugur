@@ -44,314 +44,329 @@
 
 (defun mugur--qmk-keycode (key)
   "Transform the mugur `KEY' into the qmk keycode equivalent."
-  (pcase key
-    ;; Digits from '0' to '9'.
-    ((and (pred integerp)
-          (guard (<= 0 key 9)))
-     (format "KC_%s" (number-to-string key)))
+  (or
+   (and
+    ;; Handle macros, mod-taps and the rest of high-level keys
+    (listp key)
+    (pcase key      
 
-    ;; Modifier Keys (https://docs.qmk.fm/#/feature_advanced_keycodes)
-    ((pred mugur--qmk-modifier) (mugur--qmk-modifier key))    
+      ;; Modifier Keys (https://docs.qmk.fm/#/feature_advanced_keycodes)
+      ((and `(,k)            
+            (guard (and (symbolp k)
+                        (mugur--qmk-modifier k))))
+       (mugur--qmk-modifier k))
+
+      ;; Mod Tap (https://docs.qmk.fm/#/mod_tap)
+      ((pred mugur--qmk-mod-tap)
+       (mugur--qmk-mod-tap key))
+
+      ;; Macros (https://docs.qmk.fm/#/feature_macros)
+      ((pred mugur--qmk-macro)
+       (mugur--qmk-macro key))
+      
+      ;; No list matches from here on.
+      (`(,k) (mugur--qmk-keycode k))))
+
+   (and
+    ;; Handle letters, digits and the rest of the basic keycodes.
+    (or (integerp   key)
+        (symbolp    key)
+        (characterp key)
+        (and (stringp key)
+             (= (length key) 1)))
     
-    ;; Key of the form (a) or (C-a)
-    ((and (pred listp)
-          (guard (= (length key) 1)))
-     (mugur--qmk-keycode (car key)))
+    (pcase key
+      ;; Letters and Numbers
+      ;; https://docs.qmk.fm/#/keycodes_basic?id=letters-and-numbers
+      ;;; Digits from '0' to '9'.
+      ((and (pred integerp)
+            (guard (<= 0 key 9)))
+       (format "KC_%s" (number-to-string key)))
 
-    ;; Single char string (letters or special characters, like ?, +, etc..)
-    ((and (pred stringp)
-          (guard (= (length key) 1)))
-     (or (mugur--qmk-keycode (string-to-char key))
-         (mugur--qmk-keycode (intern key))))
+      ;;; Letters from 'a' to 'z'
+      ((and (pred symbolp)
+            (guard (and (= (length (symbol-name key)) 1)
+                        (<= ?a
+                            (string-to-char (symbol-name key))
+                            ?z))))
+       (format "KC_%s" (upcase (symbol-name key))))
 
-    ;; Mod Tap (https://docs.qmk.fm/#/mod_tap)
-    ((and (pred listp)
-          (guard (mugur--qmk-mod-tap key)))
-     (mugur--qmk-mod-tap key))
+      ;; Some of the keys can only be given as characters (i.e. ?\?, ?\'), but
+      ;; others can be given both as a symbol and as a string of length one
+      ;; (i.e. 'x and "x")
+      ((and (pred stringp))
+       (or (mugur--qmk-keycode (string-to-char key))
+           (mugur--qmk-keycode (intern key))))
+      
+      ;; F keys.
+      ;; https://docs.qmk.fm/#/keycodes_basic?id=lock-keys
+      ((and (pred symbolp)
+            (guard (s-match (rx bol
+                                (or (seq "f1" digit)
+                                    (seq "f2" (in "0-4"))
+                                    (seq "f"  digit))                    
+                                eol)
+                            (symbol-name key))))
+       (format "KC_%s" (upcase (symbol-name key))))
 
-    ;; Macros (https://docs.qmk.fm/#/feature_macros)
-    ((and (pred listp)
-          (guard (mugur--qmk-macro key)))
-     (mugur--qmk-macro key))
-        
-    ;; Letters from 'a' to 'z'
-    ((and (pred symbolp)
-          (guard (and (= (length (symbol-name key)) 1)
-                      (<= ?a
-                          (string-to-char (symbol-name key))
-                          ?z))))
-     (format "KC_%s" (upcase (symbol-name key))))
+      ;; Punctuation
+      ((or 'enter             'ent       ) "KC_ENTER"               ) ;Return (Enter)
+      ((or 'escape            'esc       ) "KC_ESCAPE"              ) ;Escape
+      (    'bspace                         "KC_BSPACE"              ) ;Delete (Backspace)
+      ((or 'tab               'tab       ) "KC_TAB"                 ) ;Tab
+      ((or 'space             'spc       ) "KC_SPACE"               ) ;Spacebar
+      (    '-                              "KC_MINUS"               ) ;- and _
+      (    '=                              "KC_EQUAL"               ) ;= and +
+      ((or 'lbracket          ?\[        ) "KC_LBRACKET"            ) ;[ and {
+      ((or 'rbracket          ?\]        ) "KC_RBRACKET"            ) ;] and }
+      ((or 'bslash            ?\\        ) "KC_BSLASH"              ) ;\ and |
+      (    'nonus-hash                     "KC_NONUS_HASH"          ) ;Non-US # and ~
+      ((or 'scolon            ?\;        ) "KC_SCOLON"              ) ;; and :
+      ((or 'quote             ?\'        ) "KC_QUOTE"               ) ;' and
+      ((or 'grave             ?\`        ) "KC_GRAVE"               ) ;` and ~, JIS Zenkaku/Hankaku
+      ((or 'comma             ?\,        ) "KC_COMMA"               ) ;, and <
+      ((or 'dot               ?\.        ) "KC_DOT"                 ) ;. and >
+      ((or 'slash             ?\/        ) "KC_SLASH"               ) ;/ and ?
 
-    ;; Function keys from f1 to f24.
-    ((and (pred symbolp)
-          (guard (s-match (rx bol
-                              (or (seq "f1" digit)
-                                  (seq "f2" (in "0-4"))
-                                  (seq "f"  digit))                    
-                              eol)
-                          (symbol-name key))))
-     (format "KC_%s" (upcase (symbol-name key))))
+      ;; Lock keys
+      ((or 'capslock          'caps      ) "KC_CAPSLOCK"            ) ;Caps Lock
+      ((or 'scrollock         'slck      ) "KC_SCROLLOCK"           ) ;Scroll Lock, Brightness Down (macOS)
+      ((or 'numlock           'nlck      ) "KC_NUMLOCK"             ) ;Keypad Num Lock and Clear
+      ((or 'locking_caps      'lcap      ) "KC_LOCKING_CAPS"        ) ;Locking Caps Lock
+      ((or 'locking_num       'lnum      ) "KC_LOCKING_NUM"         ) ;Locking Num Lock
+      ((or 'locking_scroll    'lscr      ) "KC_LOCKING_SCROLL"      ) ;Locking Sroll Lock
 
-    ;; Punctuation.
-    ((or 'ENT        'enter  ) "enter"      ) ;Return (Enter)
-    ((or 'ESC        'escape ) "escape"     ) ;Escape
-    (    'bspace               "bspace"     ) ;Delete (Backspace)
-    ((or 'TAB        'tab    ) "tab"        ) ;Tab
-    ((or 'SPC        'space  ) "space"      ) ;Spacebar
-    (    '-                    "minus"      ) ;- and _
-    (    '=                    "equal"      ) ;= and +
-    ((or 'lbracket   "["     ) "lbracket"   ) ;[ and {
-    ((or 'rbracket   "]"     ) "rbracket"   ) ;] and }
-    ((or 'bslash     "\\"    ) "bslash"     ) ;\ and |
-    (    'nonus-hash           "nonus_HASH" ) ;Non-US # and ~
-    ((or 'scolon     ";"     ) "scolon"     ) ;; and :
-    ((or 'quote      "'"     ) "quote"      ) ;' and
-    ((or 'grave      "`"     ) "grave"      ) ;` and ~, JIS Zenkaku/Hankaku
-    ((or 'comma      ","     ) "comma"      ) ;, and <
-    ((or 'dot        "."     ) "dot"        ) ;. and >
-    ((or 'slash      "/"     ) "slash"      ) ;/ and ?
+      ;; Modifiers
+      ((or 'lctl              'C         ) "KC_LCTL"                ) ;Left Control
+      ((or 'lalt              'M         ) "KC_LALT"                ) ;Left Alt
+      ((or 'lshift            'S         ) "KC_LSFT"                ) ;Left Shift
+      ((or 'lgui              'G         ) "KC_LGUI"                ) ;Left GUI (Windows/Command/Meta key)
+      ((or 'rctl              'rctrl     ) "KC_RCTRL"               ) ;Right Control
+      ((or 'ralt              'ropt      ) "KC_RALT"                ) ;Right Alt (Option/AltGr)
+      ((or 'rshift            'rsft      ) "KC_RSHIFT"              ) ;Right Shift
+      ((or 'rgui              'rcmd      ) "KC_RGUI"                ) ;Right GUI (Windows/Command/Meta key)
 
-    ;; Lock keys.
-    ((or 'KLCK 'CAPS 'capslock       ) "capslock"       ) ;Caps Lock
-    ((or 'SLCK 'BRMD 'scrollock      ) "scrollock"      ) ;Scroll Lock, Brightness Down (macOS)
-    ((or 'NLCK       'numlock        ) "numlock"        ) ;Keypad Num Lock and Clear
-    ((or 'LCAP       'locking_caps   ) "locking_caps"   ) ;Locking Caps Lock
-    ((or 'LNUM       'locking_num    ) "locking_num"    ) ;Locking Num Lock
-    ((or 'LSCR       'locking_scroll ) "locking_scroll" ) ;Locking Sroll Lock
+      ;; International
+      ((or 'ro                'int1      ) "INT1"                   ) ;JIS \ and _
+      ((or 'kana              'int2      ) "INT2"                   ) ;JIS Katakana/Hiragana
+      ((or 'jyen              'int3      ) "INT3"                   ) ;JIS ¥ and |
+      ((or 'henk              'int4      ) "INT4"                   ) ;JIS Henkan
+      ((or 'mhen              'int5      ) "INT5"                   ) ;JIS Muhenkan
+      (    'int6                           "INT6"                   ) ;JIS Numpad ,
+      (    'int7                           "INT7"                   ) ;International 7
+      (    'int8                           "INT8"                   ) ;International 8
+      (    'int9                           "INT9"                   ) ;International 9
+      ((or 'lang1             'haen      ) "LANG1"                  ) ;Hangul/English
+      ((or 'lang2             'hanj      ) "LANG2"                  ) ;Hanja
+      (    'lang3                          "LANG3"                  ) ;JIS Katakana
+      (    'lang4                          "LANG4"                  ) ;JIS Hiragana
+      (    'lang5                          "LANG5"                  ) ;JIS Zenkaku/Hankaku
+      (    'lang6                          "LANG6"                  ) ;Language 6
+      (    'lang7                          "LANG7"                  ) ;Language 7
+      (    'lang8                          "LANG8"                  ) ;Language 8
+      (    'lang9                          "LANG9"                  ) ;Language 9
 
-    ;; Modifiers.
-    ((or 'C      'LCTL   'LCTRL       ) "lctl"   ) ;Left Control
-    ((or 'M      'LALT   'LOPT        ) "lalt"   ) ;Left Alt
-    ((or 'S      'LSHIFT 'LSFT        ) "lsft"   ) ;Left Shift
-    ((or 'G      'LGUI   'LCMD  'LWIN ) "lgui"   ) ;Left GUI (Windows/Command/Meta key)
-    ((or 'RCTL   'RCTRL               ) "rctrl"  ) ;Right Control
-    ((or 'RALT   'ROPT   'ALGR        ) "ralt"   ) ;Right Alt (Option/AltGr)
-    ((or 'RSHIFT 'RSFT                ) "rshift" ) ;Right Shift
-    ((or 'RGUI   'RCMD   'RWIN        ) "rgui"   ) ;Right GUI (Windows/Command/Meta key)
+      ;; Commands
+      ((or 'pscreen           'pscr      ) "KC_PSCREEN"             ) ;Print Screen
+      ((or 'pause             'brk       ) "KC_PAUSE"               ) ;Pause, Brightness Up (macOS) 
+      ((or 'insert            'ins       ) "KC_INSERT"              ) ;Insert
+      (    'home                           "KC_HOME"                ) ;Home
+      (    'pgup                           "KC_PGUP"                ) ;Page Up
+      ((or 'delete            'del       ) "KC_DELETE"              ) ;Forward Delete
+      (    'end                            "KC_END"                 ) ;End
+      ((or 'pgdown            'pgdn      ) "KC_PGDOWN"              ) ;Page Down
+      (    'right                          "KC_RIGHT"               ) ;Right Arrow
+      (    'left                           "KC_LEFT"                ) ;Left Arrow
+      (    'down                           "KC_DOWN"                ) ;Down Arrow
+      (    'up                             "KC_UP"                  ) ;Up Arrow
+      ((or 'application       'app       ) "KC_APPLICATION"         ) ;Application (Windows Context Menu Key)
+      (    'power                          "KC_POWER"               ) ;System Power
+      ((or 'execute           'exec      ) "KC_EXECUTE"             ) ;Execute
+      (    'help                           "KC_HELP"                ) ;Help
+      (    'menu                           "KC_MENU"                ) ;Menu
+      ((or 'select            'slct      ) "KC_SELECT"              ) ;Select
+      (    'stop                           "KC_STOP"                ) ;Stop
+      ((or 'again             'agin      ) "KC_AGAIN"               ) ;Again
+      (    'undo                           "KC_UNDO"                ) ;Undo
+      (    'cut                            "KC_CUT"                 ) ;Cut
+      (    'copy                           "KC_COPY"                ) ;Copy
+      ((or 'paste             'pste      ) "KC_PASTE"               ) ;Paste
+      (    'find                           "KC_FIND"                ) ;Find
+      (    '_mute                          "KC__MUTE"               ) ;Mute
+      (    '_volup                         "KC__VOLUP"              ) ;Volume Up
+      (    '_voldown                       "KC__VOLDOWN"            ) ;Volume Down
+      ((or 'alt_erase         'eras      ) "KC_ALT_erase"           ) ;Aternate Erase
+      (    'sysreq                         "KC_SYSREQ"              ) ;SysReq/Attention
+      (    'cancel                         "KC_CANCEL"              ) ;Cancel
+      ((or 'clear             'clr       ) "KC_CLEAR"               ) ;Clear
+      (    'prior                          "KC_PRIOR"               ) ;Prior
+      (    'return                         "KC_RETURN"              ) ;Return
+      (    'separator                      "KC_SEPARATOR"           ) ;Separator
+      (    'out                            "KC_OUT"                 ) ;Out
+      (    'oper                           "KC_OPER"                ) ;Open
+      (    'clear_again                    "KC_CLEAR_again"         ) ;Clear/Again
+      (    'crsel                          "KC_CRSEL"               ) ;CrSel/Props
+      (    'exsel                          "KC_EXSEL"               ) ;ExSel
 
-    ;; International.
-    ((or 'ro 'int1) "int1")             ;JIS \ and _
-    ((or 'kana 'int2) "int2")           ;JIS Katakana/Hiragana
-    ((or 'jyen 'int3) "int3")           ;JIS ¥ and |
-    ((or 'henk 'int4) "int4")           ;JIS Henkan
-    ((or 'mhen 'int5) "int5")           ;JIS Muhenkan
-    (    'int6 "int6")                  ;JIS Numpad ,
-    (    'int7 "int7")                  ;International 7
-    (    'int8 "int8")                  ;International 8
-    (    'int9 "int9")                  ;International 9
-    ((or 'lang1 'haen) "lang1")         ;Hangul/English
-    ((or 'lang2 'hanj) "lang2")         ;Hanja
-    (    'lang3 "lang3")                ;JIS Katakana
-    (    'lang4 "lang4")                ;JIS Hiragana
-    (    'lang5 "lang5")                ;JIS Zenkaku/Hankaku
-    (    'lang6 "lang6")                ;Language 6
-    (    'lang7 "lang7")                ;Language 7
-    (    'lang8 "lang8")                ;Language 8
-    (    'lang9 "lang9")                ;Language 9
-    
-    ;; Commands
-    ((or 'PSCR        'PSCREEN             ) "pscreen"     ) ;Print Screen
-    ((or 'BRK         'BRMU         'PAUSE ) "pause"       ) ;Pause, Brightness Up (macOS) 
-    ((or 'INS         'INSERT              ) "insert"      ) ;Insert
-    (    'HOME                               "home"        ) ;Home
-    (    'PGUP                               "pgup"        ) ;Page Up
-    ((or 'DEL         'DELETE              ) "delete"      ) ;Forward Delete
-    (    'END                                "end"         ) ;End
-    ((or 'PGDN        'PGDOWN              ) "pgdown"      ) ;Page Down
-    (    'RIGHT                              "right"       ) ;Right Arrow
-    (    'LEFT                               "left"        ) ;Left Arrow
-    (    'DOWN                               "down"        ) ;Down Arrow
-    (    'UP                                 "up"          ) ;Up Arrow
-    ((or 'APP         'APPLICATION         ) "application" ) ;Application (Windows Context Menu Key)
-    (    'POWER                              "power"       ) ;System Power
-    ((or 'EXEC        'EXECUTE             ) "execute"     ) ;Execute
-    (    'HELP                               "help"        ) ;Help
-    (    'MENU                               "menu"        ) ;Menu
-    ((or 'SLCT        'SELECT              ) "select"      ) ;Select
-    (    'stop                               "stop"        ) ;Stop
-    ((or 'AGIN        'AGAIN               ) "again"       ) ;Again
-    (    'UNDO                               "undo"        ) ;Undo
-    (    'CUT                                "cut"         ) ;Cut
-    (    'COPY                               "copy"        ) ;Copy
-    ((or 'PSTE        'PASTE               ) "paste"       ) ;Paste
-    (    'FIND                               "find"        ) ;Find
-    (    '_MUTE                              "_mute"       ) ;Mute
-    (    '_VOLUP                             "_volup"      ) ;Volume Up
-    (    '_VOLDOWN                           "_voldown"    ) ;Volume Down
-    ((or 'ERAS        'ALT_ERASE           ) "alt_erase"   ) ;Aternate Erase
-    (    'SYSREQ                             "sysreq"      ) ;SysReq/Attention
-    (    'CANCEL                             "cancel"      ) ;Cancel
-    ((or 'CLR         'CLEAR               ) "clear"       ) ;Clear
-    (    'PRIOR                              "prior"       ) ;Prior
-    (    'RETURN                             "return"      ) ;Return
-    (    'SEPARATOR                          "separator"   ) ;Separator
-    (    'OUT                                "out"         ) ;Out
-    (    'OPER                               "oper"        ) ;Open
-    (    'CLEAR_AGAIN                        "clear_again" ) ;Clear/Again
-    (    'CRSEL                              "crsel"       ) ;CrSel/Props
-    (    'EXSEL                              "exsel"       ) ;ExSel
+      ;; Media Keys
+      ((or 'system-power      'pwr       ) "KC_SYSTEM_POWER"        ) ;System Power Down
+      ((or 'system-sleep      'slep      ) "KC_SYSTEM_SLEEP"        ) ;System Sleep
+      ((or 'system-wake       'wake      ) "KC_SYSTEM_WAKE"         ) ;System Wake
+      ((or 'audio-mute        'mute      ) "KC_AUDIO_MUTE"          ) ;Mute
+      ((or 'vol-up            'volu      ) "KC_AUDIO_VOL_UP"        ) ;Volume Up
+      ((or 'vol-down          'vold      ) "KC_AUDIO_VOL_DOWN"      ) ;Volume Down
+      ((or 'next-track        'mnxt      ) "KC_MEDIA_NEXT_TRACK"    ) ;Next Track
+      ((or 'prev-track        'mprv      ) "KC_MEDIA_PREV_TRACK"    ) ;Previous Track
+      ((or 'media-stop        'mstp      ) "KC_MEDIA_STOP"          ) ;Stop Track
+      ((or 'media-play-pause  'mply      ) "KC_MEDIA_PLAY_PAUSE"    ) ;Play/Pause Track
+      ((or 'media-select      'msel      ) "KC_MEDIA_SELECT"        ) ;Launch Media Player
+      ((or 'media-eject       'ejct      ) "KC_MEDIA_EJECT"         ) ;Eject
+      (    'mail                           "KC_MAIL"                ) ;Launch Mail
+      ((or 'calculator        'calc      ) "KC_CALCULATOR"          ) ;Launch Calculator
+      ((or 'my-computer       'mycm      ) "KC_MY_COMPUTER"         ) ;Launch My Computer
+      ((or 'www-search        'wsch      ) "KC_WWW_SEARCH"          ) ;Browser Search
+      ((or 'www-home          'whom      ) "KC_WWW_HOME"            ) ;Browser Home
+      ((or 'www-back          'wbak      ) "KC_WWW_BACK"            ) ;Browser Back
+      ((or 'www-forward       'wfwd      ) "KC_WWW_FORWARD"         ) ;Browser Forward
+      ((or 'www-stop          'wstp      ) "KC_WWW_STOP"            ) ;Browser Stop
+      ((or 'www-refresh       'wref      ) "KC_WWW_REFRESH"         ) ;Browser Refresh
+      ((or 'www-favorites     'wfav      ) "KC_WWW_FAVORITES"       ) ;Browser Favorites
+      ((or 'fast-forward      'mffd      ) "KC_MEDIA_FAST_FORWARD"  ) ;Next Track
+      ((or 'rewind            'mrwd      ) "KC_MEDIA_REWIND"        ) ;Previous Track
+      ((or 'brigthness-up     'briu      ) "KC_BRIGTHNESS_UP"       ) ;Brightness Up
+      ((or 'brigthness-down   'brid      ) "KC_BRIGTHNESS_DOWN"     ) ;Brightness Down
 
-    ;; Media Keys.
-    ((or 'pwr  'system-power     ) "system_power"       ) ;System Power Down
-    ((or 'slep 'system-sleep     ) "system_sleep"       ) ;System Sleep
-    ((or 'wake 'system-wake      ) "system_wake"        ) ;System Wake
-    ((or 'mute 'audio-mute       ) "audio_mute"         ) ;Mute
-    ((or 'volu 'vol-up           ) "audio_vol_up"       ) ;Volume Up
-    ((or 'vold 'vol-down         ) "audio_vol_down"     ) ;Volume Down
-    ((or 'mnxt 'next-track       ) "media_next_track"   ) ;Next Track
-    ((or 'mprv 'prev-track       ) "media_prev_track"   ) ;Previous Track
-    ((or 'mstp 'media-stop       ) "media_stop"         ) ;Stop Track
-    ((or 'mply 'media-play-pause ) "media_play_pause"   ) ;Play/Pause Track
-    ((or 'msel 'media-select     ) "media_select"       ) ;Launch Media Player
-    ((or 'ejct 'media-eject      ) "media_eject"        ) ;Eject
-    (    'mail                     "mail"               ) ;Launch Mail
-    ((or 'calc 'calculator       ) "calculator"         ) ;Launch Calculator
-    ((or 'mycm 'my-computer      ) "my_computer"        ) ;Launch My Computer
-    ((or 'wsch 'www-search       ) "www_search"         ) ;Browser Search
-    ((or 'whom 'www-home         ) "www_home"           ) ;Browser Home
-    ((or 'wbak 'www-back         ) "www_back"           ) ;Browser Back
-    ((or 'wfwd 'www-forward      ) "www_forward"        ) ;Browser Forward
-    ((or 'wstp 'www-stop         ) "www_stop"           ) ;Browser Stop
-    ((or 'wref 'www-refresh      ) "www_refresh"        ) ;Browser Refresh
-    ((or 'wfav 'www-favorites    ) "www_favorites"      ) ;Browser Favorites
-    ((or 'mffd 'fast-forward     ) "media_fast_forward" ) ;Next Track
-    ((or 'mrwd 'rewind           ) "media_rewind"       ) ;Previous Track
-    ((or 'briu 'brigthness-up    ) "brigthness_up"      ) ;Brightness Up
-    ((or 'brid 'brigthness-down  ) "brigthness_down"    ) ;Brightness Down
+      ;; Number Pad
+      ((or 'kp_slash          'psls      ) "KP_SLASH"               ) ;Keypad /
+      ((or 'kp_asterisk       'past      ) "KP_ASTERISK"            ) ;Keypad *
+      ((or 'kp_minus          'pmns      ) "KP_MINUS"               ) ;Keypad -
+      ((or 'kp_plus           'ppls      ) "KP_PLUS"                ) ;Keypad +
+      ((or 'kp_enter          'pent      ) "KP_ENTER"               ) ;Enter
+      ((or 'kp_1              'p1        ) "KP_1"                   ) ;Keypad 1 and End
+      ((or 'kp_2              'p2        ) "KP_2"                   ) ;Keypad 2 and Down Arrow
+      ((or 'kp_3              'p3        ) "KP_3"                   ) ;Keypad 3 and Page Down
+      ((or 'kp_4              'p4        ) "KP_4"                   ) ;Keypad 4 and Left Arrow 
+      ((or 'kp_5              'p5        ) "KP_5"                   ) ;Keypad 5
+      ((or 'kp_6              'p6        ) "KP_6"                   ) ;Keypad 6 and Right Arrow
+      ((or 'kp_7              'p7        ) "KP_7"                   ) ;Keypad 7 and Home
+      ((or 'kp_8              'p8        ) "KP_8"                   ) ;Keypad 8 and Up Arrow
+      ((or 'kp_9              'p9        ) "KP_9"                   ) ;Keypad 9 and Page Up
+      ((or 'kp_0              'p0        ) "KP_0"                   ) ;Keypad 0 and Insert
+      ((or 'kp_dot            'pdot      ) "KP_DOT"                 ) ;Keypad . and Delete
+      ((or 'kp_equal          'peql      ) "KP_EQUAL"               ) ;Keypad = 
+      ((or 'kp_comma          'pcmm      ) "KP_COMMA"               ) ;Keypad ,
+      (    'kp_equal_as400                 "KP_EQUAL_AS400"         ) ;Keypad = on AS/400 keyboards
 
-    ;; Number Pad.
-    ((or 'psls 'kp_slash    ) "kp_slash"    ) ; Keypad /
-    ((or 'past 'kp_asterisk ) "kp_asterisk" ) ; Keypad *
-    ((or 'pmns 'kp_minus    ) "kp_minus"    ) ; Keypad -
-    ((or 'ppls 'kp_plus     ) "kp_plus"     ) ; Keypad +
-    ((or 'pent 'kp_enter    ) "kp_enter"    ) ; Enter
-    ((or 'p1   'kp_1        ) "kp_1"        ) ; Keypad 1 and End
-    ((or 'p2   'kp_2        ) "kp_2"        ) ; Keypad 2 and Down Arrow
-    ((or 'p3   'kp_3        ) "kp_3"        ) ; Keypad 3 and Page Down
-    ((or 'p4   'kp_4        ) "kp_4"        ) ; Keypad 4 and Left Arrow 
-    ((or 'p5   'kp_5        ) "kp_5"        ) ; Keypad 5
-    ((or 'p6   'kp_6        ) "kp_6"        ) ; Keypad 6 and Right Arrow
-    ((or 'p7   'kp_7        ) "kp_7"        ) ; Keypad 7 and Home
-    ((or 'p8   'kp_8        ) "kp_8"        ) ; Keypad 8 and Up Arrow
-    ((or 'p9   'kp_9        ) "kp_9"        ) ; Keypad 9 and Page Up
-    ((or 'p0   'kp_0        ) "kp_0"        ) ; Keypad 0 and Insert
-    ((or 'pdot 'kp_dot      ) "kp_dot"      ) ; Keypad . and Delete
-    ((or 'peql 'kp_equal    ) "kp_equal"    ) ; Keypad = 
-    ((or 'pcmm 'kp_comma    ) "kp_comma"    ) ; Keypad ,
-    ('kp_equal_as400 "kp_equal_as400"       ) ; Keypad = on AS/400 keyboards
+      ;; Special Keys
+      ((or 'no                '---       ) "KC_NO"                  ) ;Ignore this key (NOOP)
+      ((or 'trns              'nil       ) "KC_TRANSPARENT"         ) ;Use the next lowest non-transparent key
 
-    ;; Special Keys
-    ((or 'no '---) "KC_NO")             ;Ignore this key (NOOP)
-    ((or 'trns 'nil) "KC_TRANSPARENT")  ;Use the next lowest non-transparent key
+      ;; Quantum Keycodes
+      (    'reset                          "RESET"                  ) ;Put the keyboard into bootloader mode for flashing
+      (    'debug                          "DEBUG"                  ) ;Toggle debug mode
+      ((or 'eeprom-reset      'eep_rst   ) "EEPROM_RESET"           ) ;Reinitializes the keyboard’s EEPROM (persistent memory)
+      
+      ;; Dynamic Macros
+      ((or 'dyn_rec_start1    'dm_rec1   ) "KC_DYN_REC_START1"      ) ;Start recording Macro 1
+      ((or 'dyn_rec_start2    'dm_rec2   ) "KC_DYN_REC_START1"      ) ;Start recording Macro 2
+      ((or 'dyn_macro_play1   'dm_ply1   ) "KC_DYN_MACRO_PLAY1"     ) ;Replay Macro 1
+      ((or 'dyn_macro_play2   'dm_ply2   ) "KC_DYN_MACRO_PLAY1"     ) ;Replay Macro 2
+      ((or 'dyn_rec_stop      'dm_rstp   ) "KC_DYN_REC_STOP"        ) ;Finish the macro that is currently being recorded.
 
-    ;; Quantum Keycodes (https://docs.qmk.fm/#/quantum_keycodes)
-    ('reset        "RESET")  ;Put the keyboard into bootloader mode for flashing
-    ('debug        "DEBUG")  ;Toggle debug mode
-    ('eeprom-reset "EEPROM_RESET") ;Reinitializes the keyboard’s EEPROM (persistent memory)
-    
-    ;; Dynamic Macros (https://docs.qmk.fm/#/feature_dynamic_macros)
-    ((or 'dyn_rec_start1  'dm_rec1) "KC_DYN_REC_START1") ;Start recording Macro 1
-    ((or 'dyn_rec_start2  'dm_rec2) "KC_DYN_REC_START1") ;Start recording Macro 2
-    ((or 'dyn_macro_play1 'dm_ply1) "KC_DYN_MACRO_PLAY1") ;Replay Macro 1
-    ((or 'dyn_macro_play2 'dm_ply2) "KC_DYN_MACRO_PLAY1") ;Replay Macro 2
-    ((or 'dyn_rec_stop    'dm_rstp) "KC_DYN_REC_STOP") ;Finish the macro that is currently being recorded.
+      ;; Grave Escape
+      ((or 'gesc              'grave_esc ) "KC_GESC"                ) ;Escape when pressed, ` when Shift or GUI are held
 
-    ;; Grave Escape (https://docs.qmk.fm/#/feature_grave_esc)
-    ((or 'gesc 'GRAVE_ESC) "KC_GESC") ;Escape when pressed, ` when Shift or GUI are held
+      ;; Leader Key
+      (    'lead                           "KC_LEADER"              ) ;The Leader Key
 
-    ;; Leader Key (https://docs.qmk.fm/#/feature_leader_key)
-    ('lead "KC_LEADER")
+      ;; Mouse Keys
+      ((or 'ms_up             'ms_u      ) "KC_MS_UP"               ) ;Move cursor up
+      ((or 'ms_down           'ms_d      ) "KC_MS_DOWN"             ) ;Move cursor down
+      ((or 'ms_left           'ms_l      ) "KC_MS_LEFT"             ) ;Move cursor left
+      ((or 'ms_right          'ms_r      ) "KC_MS_RIGHT"            ) ;Move cursor right
+      ((or 'ms_btn1           'btn1      ) "KC_MS_BTN1"             ) ;Press button 1
+      ((or 'ms_btn2           'btn2      ) "KC_MS_BTN2"             ) ;Press button 2
+      ((or 'ms_btn3           'btn3      ) "KC_MS_BTN3"             ) ;Press button 3
+      ((or 'ms_btn4           'btn4      ) "KC_MS_BTN4"             ) ;Press button 4
+      ((or 'ms_btn5           'btn5      ) "KC_MS_BTN5"             ) ;Press button 5
+      ((or 'ms_btn6           'btn6      ) "KC_MS_BTN6"             ) ;Press button 6
+      ((or 'ms_btn7           'btn7      ) "KC_MS_BTN7"             ) ;Press button 7
+      ((or 'ms_btn8           'btn8      ) "KC_MS_BTN8"             ) ;Press button 8
+      ((or 'ms_wh_up          'wh_u      ) "KC_MS_WH_UP"            ) ;Move wheel up
+      ((or 'ms_wh_down        'wh_d      ) "KC_MS_WH_DOWN"          ) ;Move wheel down
+      ((or 'ms_wh_left        'wh_l      ) "KC_MS_WH_LEFT"          ) ;Move wheel left
+      ((or 'ms_wh_right       'wh_r      ) "KC_MS_WH_RIGHT"         ) ;Move wheel right
+      ((or 'ms_accel0         'acl0      ) "KC_MS_ACCEL0"           ) ;Set speed to 0
+      ((or 'ms_accel1         'acl1      ) "KC_MS_ACCEL1"           ) ;Set speed to 1
+      ((or 'ms_accel2         'acl2      ) "KC_MS_ACCEL2"           ) ;Set speed to 2
+      
+      ;; Space Cadet
+      (    'lspo                           "KC_LSPO"                ) ;Left Shift when held, ( when tapped
+      (    'rspc                           "KC_RSPC"                ) ;Right Shift when held, ) when tapped
+      (    'lcpo                           "KC_LCPO"                ) ;Left Control when held, ( when tapped
+      (    'rcpc                           "KC_RCPC"                ) ;Right Control when held, ) when tapped
+      (    'lapo                           "KC_LAPO"                ) ;Left Alt when held, ( when tapped
+      (    'rapc                           "KC_RAPC"                ) ;Right Alt when held, ) when tapped
+      (    'sftent                         "KC_SFTENT"              ) ;Right Shift when held, Enter when tapped
 
-    ;; Mouse Keys (https://docs.qmk.fm/#/feature_mouse_keys)
-    ((or 'ms_up       'ms_u) "ms_up")       ;Move cursor up
-    ((or 'ms_down     'ms_d) "ms_down")     ;Move cursor down
-    ((or 'ms_left     'ms_l) "ms_left")     ;Move cursor left
-    ((or 'ms_right    'ms_r) "ms_right")    ;Move cursor right
-    ((or 'ms_btn1     'btn1) "ms_btn1")     ;Press button 1
-    ((or 'ms_btn2     'btn2) "ms_btn2")     ;Press button 2
-    ((or 'ms_btn3     'btn3) "ms_btn3")     ;Press button 3
-    ((or 'ms_btn4     'btn4) "ms_btn4")     ;Press button 4
-    ((or 'ms_btn5     'btn5) "ms_btn5")     ;Press button 5
-    ((or 'ms_btn6     'btn6) "ms_btn6")     ;Press button 6
-    ((or 'ms_btn7     'btn7) "ms_btn7")     ;Press button 7
-    ((or 'ms_btn8     'btn8) "ms_btn8")     ;Press button 8
-    ((or 'ms_wh_up    'wh_u) "ms_wh_up")    ;Move wheel up
-    ((or 'ms_wh_down  'wh_d) "ms_wh_down")  ;Move wheel down
-    ((or 'ms_wh_left  'wh_l) "ms_wh_left")  ;Move wheel left
-    ((or 'ms_wh_right 'wh_r) "ms_wh_right") ;Move wheel right
-    ((or 'ms_accel0   'acl0) "ms_accel0")   ;Set speed to 0
-    ((or 'ms_accel1   'acl1) "ms_accel1")   ;Set speed to 1
-    ((or 'ms_accel2   'acl2) "ms_accel2")   ;Set speed to 2
-    
-    ;; Space Cadet (https://docs.qmk.fm/#/feature_space_cadet)
-    ('lspo   "KC_LSPO")                ;Left Shift when held, ( when tapped
-    ('rspc   "KC_RSPC")                ;Right Shift when held, ) when tapped
-    ('lcpo   "KC_LCPO")                ;Left Control when held, ( when tapped
-    ('rcpc   "KC_RCPC")                ;Right Control when held, ) when tapped
-    ('lapo   "KC_LAPO")                ;Left Alt when held, ( when tapped
-    ('rapc   "KC_RAPC")                ;Right Alt when held, ) when tapped
-    ('sftent "KC_SFTENT")              ;Right Shift when held, Enter when tapped
+      ;; US ANSI Shifted Symbols
+      ((or 'tilde              ?\~       ) "KC_TILDE"               ) ;~
+      ((or 'exclaim            ?\!       ) "KC_EXCLAIM"             ) ;!
+      ((or 'at                 ?\@       ) "KC_AT"                  ) ;@
+      ((or 'hash               ?\#       ) "KC_HASH"                ) ;#
+      ((or 'dollar             ?\$       ) "KC_DOLLAR"              ) ;$
+      ((or 'percent            ?\%       ) "KC_PERCENT"             ) ;%
+      ((or 'circumflex         ?\^       ) "KC_CIRCUMFLEX"          ) ;^
+      ((or 'ampersand          ?\&       ) "KC_AMPERSAND"           ) ;&
+      ((or 'asterisk           ?\*       ) "KC_ASTERISK"            ) ;*
+      ((or 'lparen             ?\(       ) "KC_LEFT_PAREN"          ) ;(
+      ((or 'rparen             ?\)       ) "KC_RIGHT_paren"         ) ;)
+      ((or 'under              ?\_       ) "KC_UNDERSCORE"          ) ;_
+      ((or 'plus               ?\+       ) "KC_PLUS"                ) ;+
+      ((or 'left_curly         ?\{       ) "KC_LEFT_CURLY_BRACE"    ) ;{
+      ((or 'right_curly        ?\}       ) "KC_RIGHT_CURLY_BRACE"   ) ;}
+      ((or 'pipe               ?\|       ) "KC_PIPE"                ) ;|
+      ((or 'colon              ?\:       ) "KC_COLON"               ) ;:
+      ((or 'double_quote       ?\"       ) "KC_DOUBLE_QUOTE"        ) ;"
+      ((or 'left_angle         ?\<       ) "KC_LEFT_ANGLE_BRACKET"  ) ;<
+      ((or 'right_angle        ?\>       ) "KC_RIGHT_ANGLE_BRACKET" ) ;>
+      ((or 'question           ?\?       ) "KC_QUESTION"            ) ;?
 
-    ;; US ANSI Shifted Symbols (https://docs.qmk.fm/#/keycodes_us_ansi_shifted)
-    ((or 'tilde '~)                     "tilde")
-    ((or 'exclaim '!)                     "exclaim")
-    ((or 'at '@ )                     "at")
-    ((or 'hash "#")         "hash")
-    ((or 'dollar '$)                     "dollar")
-    ((or 'percent '%)                     "percent")
-    ((or 'circumflex '^)                     "circumflex")
-    ((or 'ampersand '&)                     "ampersand")
-    ((or 'asterisk '*)                     "asterisk")
-    ((or 'lparen "(")       "left_paren")
-    ((or 'rparen ?\))       "right_paren")
-    ((or 'under '_)                     "underscore")
-    ((or 'plus '+)                     "plus")
-    ((or 'left_curly ?\{)                     "left_curly_brace")
-    ((or 'right_curly ?\})                     "right_curly_brace")
-    ((or 'pipe '|)                     "pipe")
-    ((or 'colon ':)                     "colon")
-    ((or 'double_quote ?\") "double_quote")
-    ((or 'left_angle ?\<)                     "left_angle_bracket")
-    ((or 'right_angle ?\>)                     "right_angle_bracket")
-    ((or 'question ?\?)     "question")
+      ;; RGB Ligthing
+      (    'rgb_tog                        "RGB_TOG"                ) ;Toggle RGB lighting on or off
+      ((or 'rgb_mode_forward  'rgb_mod   ) "RGB_MOD"                ) ;Cycle through modes, reverse direction when Shift is held 
+      ((or 'rgb_mode_reverse  'rgb_mod   ) "RGB_RMOD"               ) ;Cycle through modes in reverse, forward direction when Shift is held
+      (    'rgb_hui                        "RGB_HUI"                ) ;Increase hue, decrease hue when Shift is held
+      (    'rgb_hud                        "RGB_HUD"                ) ;Decrease hue, increase hue when Shift is held
+      (    'rgb_sai                        "RGB_SAI"                ) ;Increase saturation, decrease saturation when Shift is held
+      (    'rgb_sad                        "RGB_SAD"                ) ;Decrease saturation, increase saturation when Shift is held
+      (    'rgb_vai                        "RGB_VAI"                ) ;Increase value (brightness), decrease value when Shift is held
+      (    'rgb_vad                        "RGB_VAD"                ) ;Decrease value (brightness), increase value when Shift is held
+      ((or 'rgb_mode_plain    'rgb_m_p   ) "RGB_MOIDE_PLAIN"        ) ;Static (no animation) mode
+      ((or 'rgb_mode_breathe  'rgb_m_b   ) "RGB_MODE_BREATHE"       ) ;Breathing animation mode
+      ((or 'rgb_mode_rainbow  'rgb_m_r   ) "RGB_MODE_RAINBOW"       ) ;Rainbow animation mode
+      ((or 'rgb_mode_swirl    'rgb_m_sw  ) "RGB_MODE_SWIRL"         ) ;Swirl animation mode
+      ((or 'rgb_mode_snake    'rgb_m_sn  ) "RGB_MODE_SNAKE"         ) ;Snake animation mode
+      ((or 'rgb_mode_knight   'rgb_m_k   ) "RGB_MODE_KNIGHT"        ) ;"Knight Rider" animation mode
+      ((or 'rgb_mode_xmas     'rgb_m_x   ) "RGB_MODE_XMAS"          ) ;Christmas animation mode
+      ((or 'rgb_mode_gradient 'rgb_m_g   ) "RGB_MODE_GRADIENT"      ) ;Static gradient animation mode
+      ((or 'rgb_mode_rgbtest  'rgb_m_t   ) "RGB_MODE_RGBTEST"       ) ;Red, Green, Blue test animation mode
 
-    ;; RGB Ligthing (https://docs.qmk.fm/#/feature_rgblight)
-    ('rgb_tog "rgb_tog")                ;Toggle RGB lighting on or off
-    ((or 'rgb_mode_forward 'rgb_mod)           "rgb_mod") ;Cycle through modes, reverse direction when Shift is held 
-    ((or 'rgb_mode_reverse 'rgb_mod)           "rgb_rmod") ;Cycle through modes in reverse, forward direction when Shift is held
-    ('rgb_hui           "rgb_hui") ;Increase hue, decrease hue when Shift is held
-    ('rgb_hud           "rgb_hud") ;Decrease hue, increase hue when Shift is held
-    ('rgb_sai           "rgb_sai") ;Increase saturation, decrease saturation when Shift is held
-    ('rgb_sad           "rgb_sad") ;Decrease saturation, increase saturation when Shift is held
-    ('rgb_vai           "rgb_vai") ;Increase value (brightness), decrease value when Shift is held
-    ('rgb_vad           "rgb_vad") ;Decrease value (brightness), increase value when Shift is held
-    ((or 'rgb_mode_plain 'rgb_m_p)    "rgb_mode_plain") ;Static (no animation) mode
-    ((or 'rgb_mode_breathe 'rgb_m_b)  "rgb_mode_breathe") ;Breathing animation mode
-    ((or 'rgb_mode_rainbow 'rgb_m_r)  "rgb_mode_rainbow") ;Rainbow animation mode
-    ((or 'rgb_mode_swirl 'rgb_m_sw)    "rgb_mode_swirl")  ;Swirl animation mode
-    ((or 'rgb_mode_snake 'rgb_m_sn)    "rgb_mode_snake")  ;Snake animation mode
-    ((or 'rgb_mode_knight 'rgb_m_k)   "rgb_mode_knight") ;"Knight Rider" animation mode
-    ((or 'rgb_mode_xmas 'rgb_m_x)     "rgb_mode_xmas") ;Christmas animation mode
-    ((or 'rgb_mode_gradient 'rgb_m_g ) "rgb_mode_gradient") ;Static gradient animation mode
-    ((or 'rgb_mode_rgbtest 'rgb_m_t)  "rgb_mode_rgbtest") ;Red, Green, Blue test animation mode
+      ;; Key Lock
+      (    'lock                           "KC_LOCK"                ) ;Hold down the next key pressed, until the key is pressed again
+      ))
 
-    ;; Key Lock (https://docs.qmk.fm/#/feature_key_lock)
-    ('lock "KC_LOCK")                   ;Hold down the next key pressed, until the key is pressed again
-    
-    ))
+
+   ))
 
 (defun mugur--qmk-modifier (key)  
   (aand
-   (and (listp key)
-        (= (length key) 1)
-        (symbolp (car key))
-        (symbol-name (car key)))   
    (let ((case-fold-search nil))
      (s-match (rx bol
                   (one-or-more (or "C-" "M-" "S-" "G-"))
                   (one-or-more anything)
                   eol)
-              it))
+              (symbol-name key)))
    ;; Ok, it means we have a key like '(C-M-x), for example.
    (s-split "-" (car it))
    (let ((find-key (mugur--qmk-keycode (intern (car (last it))))))
@@ -393,8 +408,8 @@
 
 (defun mugur--qmk-macro-helper (key)
   (aand (or (and (stringp (car key))
-                 (or (mugur--qmk-keycode (car key))
-                     (car key)))
+                 (> (length (car key)) 1)
+                 (car key))
             
             (pcase (s-split "-" (symbol-name (car key)))
               (`(,"C" ,x) (format "SS_LCTL(SS_TAP(%s)) " (mugur--qmk-keycode x)))
@@ -407,27 +422,20 @@
                  it)
             (format "\"%s%s\""
                     it
-                    (mymacro-helper (cdr key))))))
+                    (mugur--qmk-macro-helper (cdr key))))))
 
 (defun mugur--qmk-macro (key)
-  (and (> (length key) 1)
+  (and (or (> (length key) 1)
+           (and (stringp (car key))
+                (> (length (car key)) 1)))
        (s-replace "KC_" "X_"
                   (format "SEND_STRING(%s)"
                           (mugur--qmk-macro-helper key)))))
 
-(defun mugur--one-shot (key)
+(defun mugur--qmk-one-shot (key)
   (pcase key
     (`(,'osm ,x) x)
     (`(,'osl ,x) x)))
-
-(mugur--qmk-macro '(t))
-(mugur--qmk-macro '(C-u "blaa"))
-(mugur--qmk-macro '("blaa"))
-
-(mugur--qmk-keycode '(c))
-
-
-
 
 (defconst mugur--supported-keycodes
   '(("Letters and Numbers"
