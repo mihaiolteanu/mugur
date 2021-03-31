@@ -49,19 +49,30 @@
     ((and (pred integerp)
           (guard (<= 0 key 9)))
      (format "KC_%s" (number-to-string key)))
+
+    ;; Modifier Keys (https://docs.qmk.fm/#/feature_advanced_keycodes)
+    ((pred mugur--qmk-modifier) (mugur--qmk-modifier key))    
     
     ;; Key of the form (a) or (C-a)
     ((and (pred listp)
           (guard (= (length key) 1)))
      (mugur--qmk-keycode (car key)))
 
+    ;; Single char string (letters or special characters, like ?, +, etc..)
+    ((and (pred stringp)
+          (guard (= (length key) 1)))
+     (or (mugur--qmk-keycode (string-to-char key))
+         (mugur--qmk-keycode (intern key))))
+
     ;; Mod Tap (https://docs.qmk.fm/#/mod_tap)
     ((and (pred listp)
           (guard (mugur--qmk-mod-tap key)))
      (mugur--qmk-mod-tap key))
 
-    ;; Modifier Keys (https://docs.qmk.fm/#/feature_advanced_keycodes)
-    ((pred mugur--qmk-modifier) (mugur--qmk-modifier key))
+    ;; Macros (https://docs.qmk.fm/#/feature_macros)
+    ((and (pred listp)
+          (guard (mugur--qmk-macro key)))
+     (mugur--qmk-macro key))
         
     ;; Letters from 'a' to 'z'
     ((and (pred symbolp)
@@ -234,55 +245,52 @@
     ((or 'trns 'nil) "KC_TRANSPARENT")  ;Use the next lowest non-transparent key
 
     ;; Quantum Keycodes (https://docs.qmk.fm/#/quantum_keycodes)
-    ('reset        "RESET")             ;Put the keyboard into bootloader mode for flashing
-    ('debug        "DEBUG")             ;Toggle debug mode
-    ('eeprom-reset "EEPROM_RESET")      ;Reinitializes the keyboard’s EEPROM (persistent memory)
+    ('reset        "RESET")  ;Put the keyboard into bootloader mode for flashing
+    ('debug        "DEBUG")  ;Toggle debug mode
+    ('eeprom-reset "EEPROM_RESET") ;Reinitializes the keyboard’s EEPROM (persistent memory)
     
     ;; Dynamic Macros (https://docs.qmk.fm/#/feature_dynamic_macros)
-    ((or 'DYN_REC_START1  'DM_REC1) "KC_DYN_REC_START1") ;Start recording Macro 1
-    ((or 'DYN_REC_START2  'DM_REC2) "KC_DYN_REC_START1") ;Start recording Macro 2
-    ((or 'DYN_MACRO_PLAY1 'DM_PLY1) "KC_DYN_MACRO_PLAY1") ;Replay Macro 1
-    ((or 'DYN_MACRO_PLAY2 'DM_PLY2) "KC_DYN_MACRO_PLAY1") ;Replay Macro 2
-    ((or 'DYN_REC_STOP    'DM_RSTP) "KC_DYN_REC_STOP")       ;Finish the macro that is currently being recorded.
+    ((or 'dyn_rec_start1  'dm_rec1) "KC_DYN_REC_START1") ;Start recording Macro 1
+    ((or 'dyn_rec_start2  'dm_rec2) "KC_DYN_REC_START1") ;Start recording Macro 2
+    ((or 'dyn_macro_play1 'dm_ply1) "KC_DYN_MACRO_PLAY1") ;Replay Macro 1
+    ((or 'dyn_macro_play2 'dm_ply2) "KC_DYN_MACRO_PLAY1") ;Replay Macro 2
+    ((or 'dyn_rec_stop    'dm_rstp) "KC_DYN_REC_STOP") ;Finish the macro that is currently being recorded.
 
     ;; Grave Escape (https://docs.qmk.fm/#/feature_grave_esc)
-    ((or 'gesc 'GRAVE_ESC) "KC_GESC")          ;Escape when pressed, ` when Shift or GUI are held
+    ((or 'gesc 'GRAVE_ESC) "KC_GESC") ;Escape when pressed, ` when Shift or GUI are held
 
     ;; Leader Key (https://docs.qmk.fm/#/feature_leader_key)
     ('lead "KC_LEADER")
 
-    ;; Macros
-    ;; tbd
-
     ;; Mouse Keys (https://docs.qmk.fm/#/feature_mouse_keys)
-    ((or 'ms_up       'ms_u) "ms_up")   ;Move cursor up
-    ((or 'ms_down     'ms_d) "ms_down") ;Move cursor down
-    ((or 'ms_left     'ms_l) "ms_left") ;Move cursor left
-    ((or 'ms_right    'ms_r) "ms_right") ;Move cursor right
-    ((or 'ms_btn1     'btn1) "ms_btn1")  ;Press button 1
-    ((or 'ms_btn2     'btn2) "ms_btn2") ;Press button 2
-    ((or 'ms_btn3     'btn3) "ms_btn3") ;Press button 3
-    ((or 'ms_btn4     'btn4) "ms_btn4") ;Press button 4
-    ((or 'ms_btn5     'btn5) "ms_btn5") ;Press button 5
-    ((or 'ms_btn6     'btn6) "ms_btn6") ;Press button 6
-    ((or 'ms_btn7     'btn7) "ms_btn7") ;Press button 7
-    ((or 'ms_btn8     'btn8) "ms_btn8") ;Press button 8
-    ((or 'ms_wh_up    'wh_u) "ms_wh_up") ;Move wheel up
-    ((or 'ms_wh_down  'wh_d) "ms_wh_down") ;Move wheel down
-    ((or 'ms_wh_left  'wh_l) "ms_wh_left") ;Move wheel left
+    ((or 'ms_up       'ms_u) "ms_up")       ;Move cursor up
+    ((or 'ms_down     'ms_d) "ms_down")     ;Move cursor down
+    ((or 'ms_left     'ms_l) "ms_left")     ;Move cursor left
+    ((or 'ms_right    'ms_r) "ms_right")    ;Move cursor right
+    ((or 'ms_btn1     'btn1) "ms_btn1")     ;Press button 1
+    ((or 'ms_btn2     'btn2) "ms_btn2")     ;Press button 2
+    ((or 'ms_btn3     'btn3) "ms_btn3")     ;Press button 3
+    ((or 'ms_btn4     'btn4) "ms_btn4")     ;Press button 4
+    ((or 'ms_btn5     'btn5) "ms_btn5")     ;Press button 5
+    ((or 'ms_btn6     'btn6) "ms_btn6")     ;Press button 6
+    ((or 'ms_btn7     'btn7) "ms_btn7")     ;Press button 7
+    ((or 'ms_btn8     'btn8) "ms_btn8")     ;Press button 8
+    ((or 'ms_wh_up    'wh_u) "ms_wh_up")    ;Move wheel up
+    ((or 'ms_wh_down  'wh_d) "ms_wh_down")  ;Move wheel down
+    ((or 'ms_wh_left  'wh_l) "ms_wh_left")  ;Move wheel left
     ((or 'ms_wh_right 'wh_r) "ms_wh_right") ;Move wheel right
     ((or 'ms_accel0   'acl0) "ms_accel0")   ;Set speed to 0
     ((or 'ms_accel1   'acl1) "ms_accel1")   ;Set speed to 1
     ((or 'ms_accel2   'acl2) "ms_accel2")   ;Set speed to 2
     
     ;; Space Cadet (https://docs.qmk.fm/#/feature_space_cadet)
-    ('lspo   "KC_LSPO")                 ;Left Shift when held, ( when tapped
-    ('rspc   "KC_RSPC")                 ;Right Shift when held, ) when tapped
-    ('lcpo   "KC_LCPO")                 ;Left Control when held, ( when tapped
-    ('rcpc   "KC_RCPC")                 ;Right Control when held, ) when tapped
-    ('lapo   "KC_LAPO")                 ;Left Alt when held, ( when tapped
-    ('rapc   "KC_RAPC")                 ;Right Alt when held, ) when tapped
-    ('sftent "KC_SFTENT")               ;Right Shift when held, Enter when tapped
+    ('lspo   "KC_LSPO")                ;Left Shift when held, ( when tapped
+    ('rspc   "KC_RSPC")                ;Right Shift when held, ) when tapped
+    ('lcpo   "KC_LCPO")                ;Left Control when held, ( when tapped
+    ('rcpc   "KC_RCPC")                ;Right Control when held, ) when tapped
+    ('lapo   "KC_LAPO")                ;Left Alt when held, ( when tapped
+    ('rapc   "KC_RAPC")                ;Right Alt when held, ) when tapped
+    ('sftent "KC_SFTENT")              ;Right Shift when held, Enter when tapped
 
     ;; US ANSI Shifted Symbols (https://docs.qmk.fm/#/keycodes_us_ansi_shifted)
     ((or 'tilde '~)                     "tilde")
@@ -295,43 +303,47 @@
     ((or 'ampersand '&)                     "ampersand")
     ((or 'asterisk '*)                     "asterisk")
     ((or 'lparen "(")       "left_paren")
-    ((or 'rparen ?))       "right_paren")
+    ((or 'rparen ?\))       "right_paren")
     ((or 'under '_)                     "underscore")
     ((or 'plus '+)                     "plus")
-    ((or 'left_curly '{)                     "left_curly_brace")
-    ((or 'right_curly '})                     "right_curly_brace")
+    ((or 'left_curly ?\{)                     "left_curly_brace")
+    ((or 'right_curly ?\})                     "right_curly_brace")
     ((or 'pipe '|)                     "pipe")
     ((or 'colon ':)                     "colon")
-    ((or 'double_quote "\"") "double_quote")
-    ((or 'left_angle '<)                     "left_angle_bracket")
-    ((or 'right_angle '>)                     "right_angle_bracket")
-    ((or 'question ??)     "question")
+    ((or 'double_quote ?\") "double_quote")
+    ((or 'left_angle ?\<)                     "left_angle_bracket")
+    ((or 'right_angle ?\>)                     "right_angle_bracket")
+    ((or 'question ?\?)     "question")
 
     ;; RGB Ligthing (https://docs.qmk.fm/#/feature_rgblight)
     ('rgb_tog "rgb_tog")                ;Toggle RGB lighting on or off
     ((or 'rgb_mode_forward 'rgb_mod)           "rgb_mod") ;Cycle through modes, reverse direction when Shift is held 
     ((or 'rgb_mode_reverse 'rgb_mod)           "rgb_rmod") ;Cycle through modes in reverse, forward direction when Shift is held
-    ('rgb_hui           "rgb_hui")                         ;Increase hue, decrease hue when Shift is held
-    ('rgb_hud           "rgb_hud")                         ;Decrease hue, increase hue when Shift is held
-    ('rgb_sai           "rgb_sai")                         ;Increase saturation, decrease saturation when Shift is held
-    ('rgb_sad           "rgb_sad")                         ;Decrease saturation, increase saturation when Shift is held
-    ('rgb_vai           "rgb_vai")                         ;Increase value (brightness), decrease value when Shift is held
-    ('rgb_vad           "rgb_vad")                         ;Decrease value (brightness), increase value when Shift is held
+    ('rgb_hui           "rgb_hui") ;Increase hue, decrease hue when Shift is held
+    ('rgb_hud           "rgb_hud") ;Decrease hue, increase hue when Shift is held
+    ('rgb_sai           "rgb_sai") ;Increase saturation, decrease saturation when Shift is held
+    ('rgb_sad           "rgb_sad") ;Decrease saturation, increase saturation when Shift is held
+    ('rgb_vai           "rgb_vai") ;Increase value (brightness), decrease value when Shift is held
+    ('rgb_vad           "rgb_vad") ;Decrease value (brightness), increase value when Shift is held
     ((or 'rgb_mode_plain 'rgb_m_p)    "rgb_mode_plain") ;Static (no animation) mode
     ((or 'rgb_mode_breathe 'rgb_m_b)  "rgb_mode_breathe") ;Breathing animation mode
     ((or 'rgb_mode_rainbow 'rgb_m_r)  "rgb_mode_rainbow") ;Rainbow animation mode
-    ((or 'rgb_mode_swirl 'rgb_m_sw)    "rgb_mode_swirl")   ;Swirl animation mode
-    ((or 'rgb_mode_snake 'rgb_m_sn)    "rgb_mode_snake")   ;Snake animation mode
-    ((or 'rgb_mode_knight 'rgb_m_k)   "rgb_mode_knight")               ;"Knight Rider" animation mode
-    ((or 'rgb_mode_xmas 'rgb_m_x)     "rgb_mode_xmas")                 ;Christmas animation mode
-    ((or 'rgb_mode_gradient 'rgb_m_g ) "rgb_mode_gradient")            ;Static gradient animation mode
-    ((or 'rgb_mode_rgbtest 'rgb_m_t)  "rgb_mode_rgbtest")              ;Red, Green, Blue test animation mode
+    ((or 'rgb_mode_swirl 'rgb_m_sw)    "rgb_mode_swirl")  ;Swirl animation mode
+    ((or 'rgb_mode_snake 'rgb_m_sn)    "rgb_mode_snake")  ;Snake animation mode
+    ((or 'rgb_mode_knight 'rgb_m_k)   "rgb_mode_knight") ;"Knight Rider" animation mode
+    ((or 'rgb_mode_xmas 'rgb_m_x)     "rgb_mode_xmas") ;Christmas animation mode
+    ((or 'rgb_mode_gradient 'rgb_m_g ) "rgb_mode_gradient") ;Static gradient animation mode
+    ((or 'rgb_mode_rgbtest 'rgb_m_t)  "rgb_mode_rgbtest") ;Red, Green, Blue test animation mode
+
+    ;; Key Lock (https://docs.qmk.fm/#/feature_key_lock)
+    ('lock "KC_LOCK")                   ;Hold down the next key pressed, until the key is pressed again
     
     ))
 
-(defmemoize mugur--qmk-modifier (key)
+(defun mugur--qmk-modifier (key)  
   (aand
    (and (listp key)
+        (= (length key) 1)
         (symbolp (car key))
         (symbol-name (car key)))   
    (let ((case-fold-search nil))
@@ -378,6 +390,43 @@
 
                 ('(C G M S) (format "HYPR_T(%s)" kc)) ;Control, Shift, Alt and GUI when held, kc when tapped
                 )))))
+
+(defun mugur--qmk-macro-helper (key)
+  (aand (or (and (stringp (car key))
+                 (or (mugur--qmk-keycode (car key))
+                     (car key)))
+            
+            (pcase (s-split "-" (symbol-name (car key)))
+              (`(,"C" ,x) (format "SS_LCTL(SS_TAP(%s)) " (mugur--qmk-keycode x)))
+              (`(,"M" ,x) (format "SS_LALT(SS_TAP(%s)) " (mugur--qmk-keycode x)))
+              (`(,"G" ,x) (format "SS_LGUI(SS_TAP(%s)) " (mugur--qmk-keycode x)))
+              (`(,"S" ,x) (format "SS_LSFT(SS_TAP(%s)) " (mugur--qmk-keycode x))))
+
+            (format "SS_TAP(%s) " (mugur--qmk-keycode (car key))))
+        (or (and (not (cdr key))
+                 it)
+            (format "\"%s%s\""
+                    it
+                    (mymacro-helper (cdr key))))))
+
+(defun mugur--qmk-macro (key)
+  (and (> (length key) 1)
+       (s-replace "KC_" "X_"
+                  (format "SEND_STRING(%s)"
+                          (mugur--qmk-macro-helper key)))))
+
+(defun mugur--one-shot (key)
+  (pcase key
+    (`(,'osm ,x) x)
+    (`(,'osl ,x) x)))
+
+(mugur--qmk-macro '(t))
+(mugur--qmk-macro '(C-u "blaa"))
+(mugur--qmk-macro '("blaa"))
+
+(mugur--qmk-keycode '(c))
+
+
 
 
 (defconst mugur--supported-keycodes
