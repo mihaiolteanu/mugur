@@ -384,10 +384,10 @@
   "Transform the mugur `MOD' to the qmk equivalent.
 https://docs.qmk.fm/#/mod_tap"
   (pcase mod
-    ('C "MOD_LCTL")
-    ('M "MOD_LALT")
-    ('G "MOD_LGUI")
-    ('S "MOD_LSFT")))
+    ((or 'C "C") "MOD_LCTL")
+    ((or 'M "M") "MOD_LALT")
+    ((or 'G "G") "MOD_LGUI")
+    ((or 'S "S") "MOD_LSFT")))
 
 (defun mugur--mods (mods)
   "Return the qmk modifiers if all `MODS' are transformable as such.
@@ -400,36 +400,48 @@ Return nil otherwise."
   (let ((mods (butlast key))
         (key  (car (last key))))
     (aand (mugur--mods mods)
-          (print it)
           (format "MT(%s, %s)"
                   (mapconcat #'identity it " | ")
                   (mugur--qmk-keycode key)))))
 
-(defun mugur--qmk-macro-helper (key)
-  (aand (or (and (stringp (car key))
-                 (> (length (car key)) 1)
-                 (car key))
-            
-            (pcase (s-split "-" (symbol-name (car key)))
-              (`(,"C" ,x) (format "SS_LCTL(SS_TAP(%s)) " (mugur--qmk-keycode x)))
-              (`(,"M" ,x) (format "SS_LALT(SS_TAP(%s)) " (mugur--qmk-keycode x)))
-              (`(,"G" ,x) (format "SS_LGUI(SS_TAP(%s)) " (mugur--qmk-keycode x)))
-              (`(,"S" ,x) (format "SS_LSFT(SS_TAP(%s)) " (mugur--qmk-keycode x))))
-
-            (format "SS_TAP(%s) " (mugur--qmk-keycode (car key))))
-        (or (and (not (cdr key))
-                 it)
-            (format "\"%s%s\""
-                    it
-                    (mugur--qmk-macro-helper (cdr key))))))
-
 (defun mugur--qmk-macro (key)
   (and (or (> (length key) 1)
+           ;; Strings greater than one char are macros
            (and (stringp (car key))
                 (> (length (car key)) 1)))
-       (s-replace "KC_" "X_"
-                  (format "SEND_STRING(%s)"
-                          (mugur--qmk-macro-helper key)))))
+       (format "SEND_STRING(%s)"
+               ;; Tapped keys in macros have X_ instead of KC_ as part of their
+               ;; keycode
+               (s-replace "KC_" "X_" (mugur--qmk-macro-helper key)))))
+
+(defun mugur--qmk-macro-helper (key)
+  (aand (car key)                       ;destructure
+        (or
+         ;; A string; wrap it up in quotes and return it
+         (and (stringp it)                 
+              (format "\"%s\"" it))
+                 
+         ;; Hold a key and send the code (i.e M-x, C-M-t)
+         (aand (symbol-name it)
+               (and (s-contains-p "-" it)
+                    (s-split "-" it))
+               (append (mugur--mods (butlast it))
+                       (list (mugur--qmk-keycode (car (last it)))))
+               (reduce (lambda (cur total)
+                         (format "%s(%s)"
+                                 total
+                                 (s-replace "MOD_" "SS_" cur)))
+                       (reverse it)))
+         
+         ;; Single key (i.e. a, home)
+         (format "SS_TAP(%s)" (mugur--qmk-keycode it)))
+        
+        (or (and (cdr key)
+                   ;Add the above result and continue with the next elements
+                 (format "%s %s" it
+                         (mugur--qmk-macro-helper (cdr key))))
+            ;End of sequence
+            it)))
 
 (defun mugur--qmk-one-shot (key)
   (pcase key
