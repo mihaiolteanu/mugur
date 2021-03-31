@@ -42,7 +42,7 @@
   :type '(string :tag "path")
   :group 'mugur)
 
-(defun mugur--qmk-keycode (key)
+(defun mugur--keycode (key)
   "Transform the mugur `KEY' into the qmk keycode equivalent."
   (or
    (and
@@ -65,7 +65,7 @@
        (mugur--qmk-macro key))
       
       ;; No list matches from here on.
-      (`(,k) (mugur--qmk-keycode k))))
+      (`(,k) (mugur--keycode k))))
 
    (and
     ;; Handle letters, digits and the rest of the basic keycodes.
@@ -95,8 +95,8 @@
       ;; others can be given both as a symbol and as a string of length one
       ;; (i.e. 'x and "x")
       ((and (pred stringp))
-       (or (mugur--qmk-keycode (string-to-char key))
-           (mugur--qmk-keycode (intern key))))
+       (or (mugur--keycode (string-to-char key))
+           (mugur--keycode (intern key))))
       
       ;; F keys.
       ;; https://docs.qmk.fm/#/keycodes_basic?id=lock-keys
@@ -369,7 +369,7 @@
               (symbol-name key)))
    ;; Ok, it means we have a key like '(C-M-x), for example.
    (s-split "-" (car it))
-   (let ((find-key (mugur--qmk-keycode (intern (car (last it))))))
+   (let ((find-key (mugur--keycode (intern (car (last it))))))
      (and find-key
           ;; Transform it to '("C" "M" "KC_X")
           (append (butlast it) (list find-key))))
@@ -402,7 +402,7 @@ Return nil otherwise."
     (aand (mugur--mods mods)
           (format "MT(%s, %s)"
                   (mapconcat #'identity it " | ")
-                  (mugur--qmk-keycode key)))))
+                  (mugur--keycode key)))))
 
 (defun mugur--qmk-macro (key)
   (and (or (> (length key) 1)
@@ -426,7 +426,7 @@ Return nil otherwise."
                (and (s-contains-p "-" it)
                     (s-split "-" it))
                (append (mugur--mods (butlast it))
-                       (list (mugur--qmk-keycode (car (last it)))))
+                       (list (mugur--keycode (car (last it)))))
                (reduce (lambda (cur total)
                          (format "%s(%s)"
                                  total
@@ -434,7 +434,7 @@ Return nil otherwise."
                        (reverse it)))
          
          ;; Single key (i.e. a, home)
-         (format "SS_TAP(%s)" (mugur--qmk-keycode it)))
+         (format "SS_TAP(%s)" (mugur--keycode it)))
         
         (or (and (cdr key)
                    ;Add the above result and continue with the next elements
