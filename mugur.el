@@ -37,10 +37,67 @@
   :group 'tools
   :prefix "mugur-")
 
+;; qmk paths, keyboards and keymaps
 (defcustom mugur-qmk-path nil
   "Path to the qmk firmware source code."
   :type '(string :tag "path")
   :group 'mugur)
+
+(defcustom mugur-keyboard-name nil
+  "The name of the qmk keyboard in use."
+  :type '(string :tag "name")
+  :group 'mugur)
+
+(defcustom mugur-layout-name nil
+  "The layout name used in the keymaps matrix.
+Check the 'uint16_t keymaps' matrix in the default keymap.c of
+your keyboard. Some have just \"LAYOUT\", others
+\"LAYOUT_ergodox\", etc."
+  :type '(string :tag "name")
+  :group 'mugur)
+
+(defcustom mugur-keymap-name "mugur"
+  "The name of the mugur generated keymap"
+  :type '(string :tag "name")
+  :group 'mugur)
+
+;; Rules
+(defcustom mugur-leader-enable "no"
+  "Enable the leader key functionality."
+  :type '(boolean :tag "enable")
+  :group 'mugur)
+
+(defcustom mugur-rgblight-enable "no"
+  "Enable the rgblight functionality."
+  :type '(boolean :tag "enable")
+  :group 'mugur)
+
+(defcustom mugur-forcenkro-enable "yes"
+  "Enable the force nkro functionality."
+  :type '(boolean :tag "enable")
+  :group 'mugur)
+
+;; Configs
+(defcustom mugur-tapping-term 180
+  "Tapping term, in ms"
+  :type '(integer :tag "ms")
+  :group 'mugur)
+
+(defcustom mugur-combo-term 100
+  "Combo term, in ms"
+  :type '(integer :tag "ms")
+  :group 'mugur)
+
+;; Others
+(defcustom mugur-user-defined-keys nil
+  "User defined keys for long or often used combinations."
+  :type  '(alist :tag "keys")
+  :group 'mugur)
+
+(setf mugur-qmk-path      "/home/mihai/projects/qmk_firmware"
+      mugur-keyboard-name "ergodox_ez"
+      mugur-layout-name   "LAYOUT_ergodox"
+      mugur-keymap-name   "mugur_test")
 
 ;; Mugur Kecodes and their transformation into qmk equivalent
 (defun mugur--keycode (key)
@@ -49,23 +106,29 @@
       (mugur--digit    key)
       (mugur--f        key)
       (mugur--symbol   key)
+      ;; Try to interpret strings of length one as characters (i.e. ">" as ?\>)
+      (aand (stringp key)
+            (= (length key) 1)
+            (mugur--keycode (string-to-char key)))
       (mugur--oneshot  key)
       (mugur--layer    key)
       (mugur--modifier key)
       (mugur--modtap   key)
       (mugur--macro    key)
+      (mugur--user-defined key)
       (and (listp key)                  ;Destructure '(k) and search for 'k
-           (mugur--keycode (car key)))
-      (error (format "Invalid mugur key, %s" key))))
+           (mugur--keycode (car key)))))
 
 (defun mugur--letter (key)
-  "Match where `KEY' is 'letter, \"letter\" or '(letter).
+  "Match where `KEY' is 'letter, \"letter\", '(letter) o \"letter\".
 Letters from a-z, lowercase only."
   (aand (pcase key
           ((pred symbolp) key)
-          ((pred stringp) (intern key))
-          (`(,k) k))
-        (symbol-name it)
+          ((pred stringp) key)
+          (`(,k) k))        
+        (if (symbolp it)
+            (symbol-name it)
+          it)
         (and (string-match "^[a-z]$" it)
              it)
         (format "KC_%s" (upcase it))))
@@ -107,8 +170,8 @@ xy from 0-24, f lowercase or uppercase."
     (    'bspace                         "KC_BSPACE"              ) ;Delete (Backspace)
     ((or 'tab               'tab       ) "KC_TAB"                 ) ;Tab
     ((or 'space             'spc       ) "KC_SPACE"               ) ;Spacebar
-    (    '-                              "KC_MINUS"               ) ;- and _
-    (    '=                              "KC_EQUAL"               ) ;= and +
+    ((or 'minus             ?\-)         "KC_MINUS"               ) ;- and _
+    ((or 'equal             ?\=)         "KC_EQUAL"               ) ;= and +
     ((or 'lbracket          ?\[        ) "KC_LBRACKET"            ) ;[ and {
     ((or 'rbracket          ?\]        ) "KC_RBRACKET"            ) ;] and }
     ((or 'bslash            ?\\        ) "KC_BSLASH"              ) ;\ and |
@@ -312,7 +375,7 @@ xy from 0-24, f lowercase or uppercase."
     ((or 'ampersand          ?\&       ) "KC_AMPERSAND"           ) ;&
     ((or 'asterisk           ?\*       ) "KC_ASTERISK"            ) ;*
     ((or 'lparen             ?\(       ) "KC_LEFT_PAREN"          ) ;(
-    ((or 'rparen             ?\)       ) "KC_RIGHT_paren"         ) ;)
+    ((or 'rparen             ?\)       ) "KC_RIGHT_PAREN"         ) ;)
     ((or 'under              ?\_       ) "KC_UNDERSCORE"          ) ;_
     ((or 'plus               ?\+       ) "KC_PLUS"                ) ;+
     ((or 'left_curly         ?\{       ) "KC_LEFT_CURLY_BRACE"    ) ;{
@@ -367,51 +430,86 @@ Return nil otherwise."
              it)))
 
 (defun mugur--mods-plus-key (key)
-  "Transform C-M-a, (C-M-a), (C M a) into MOD_LCTL(MOD_LALT(KC_A)).
-Return nil if any of the modifiers or keys are invalid." 
   (aand (pcase key
-          (`(,key)        (and (symbolp key)
-                               (symbol-name key)))
+          (`(,key) (and (symbolp key)
+                        (symbol-name key)))
           ((pred symbolp) (symbol-name key))
           ((pred listp)   (mapconcat #'symbol-name key "-")))
         ;; Now we have a "MOD1-MOD2-kc" string, or similar
-        (s-split "-" it)        
-        (let ((mods (mugur--mods (butlast it)))
-              (kc   (mugur--keycode (car (last it)))))
-          (and mods kc                  ;All keys are valid
-               (--reduce-r (format "%s(%s)" it acc)
-                           (append mods (list kc)))))))
+        (and (s-match "-" it)
+             (s-split "-" it))        
+        (let* ((mods (mugur--mods (butlast it)))
+               ;; Avoid situations where "space" would result in
+               ;; SEND_STRING(\"space)\") and not KC_SPACE, for example.
+               (key (or (mugur--keycode (intern (car (last it))))
+                        (mugur--keycode (car (last it))))))
+          (and mods key
+               `(,@mods ,key)))))
 
 (defun mugur--modifier (key)
-  "Transform C-M-a, (C-M-a), (C M a) into LCTL(LALT(KC_A)).
-Return nil if any of the modifiers or keys are invalid."
-  (aand (mugur--mods-plus-key key)
+  "Hold down modifier and press key.
+Transform C-M-a into LCTL(LALT(KC_A)).  Return
+nil if any of the modifiers or keys are invalid."
+  (aand (symbolp key)
+        (mugur--mods-plus-key key)
+        (--reduce-r (format "%s(%s)" it acc)
+                    it)
         (s-replace "MOD_" "" it)))
 
-(defun mugur--macro (key)
-  (aand (and (listp key)
-             (> (length key) 1)
-             key)        
-        (mapcar (lambda (k)                       ;Transform the sequence into SEND_STRING eqv.
-             (or              
-              (and (stringp k)                 
-                   (format "\"%s\"" k)) ;A simple string        
-              (mugur--mods-plus-key k)  ;C-a, C-M-t, etc..         
-              (aand (mugur--keycode k)  ;A single key (i.e. a, home)
-                    (format "SS_TAP(%s)" it))))
-           it)
-        ;; Only a wf macro if all the elements have a SEND_STRING equivalent
-        (and (not (member nil it))
-             (format "SEND_STRING(%s)"
-                     (mapconcat #'identity it " ")))))
-
 (defun mugur--modtap (key)
-  "'(C M a) --> C+M when held, a when tapped"
-  (aand (mugur--mods-plus-key key)
-        (s-replace "("      " | "   it)
-        (s-replace " | KC_" ", KC_" it) ;Remove the last | and add , before KC
-        (replace-regexp-in-string (rx (one-or-more ")")) "" it)
-        (format "MT(%s)" it)))
+  "Modifier(s) when held, key when tapped
+'(C M a), C+M when held, a when tapped."
+  (aand (listp key)
+        (mugur--mods-plus-key key)
+        (format "MT(%s, %s)"
+                (--reduce-r (format "%s | %s" it acc)
+                            (butlast it))
+                (car (last it)))))
+
+
+(mugur--macro '(C-M-u C-space x))
+(mugur--macro '(C-u "blaa"))
+(mugur--modifier 'C-a)
+
+(defun mugur--macro (key)
+  (or
+   ;;A list of more than one element
+   (aand (and (listp key) 
+              (> (length key) 1))
+         ;;..transform each element into a valid SEND_STRING entry.
+         (mapcar (lambda (k) 
+              (or
+               ;;A simple string is sent as such.
+               (and (stringp k)       
+                    (format "\"%s\"" k))
+
+               ;; One or more modifiers keys plus a simple key becomes SS_ + TAP_
+               ;; i.e. C-M-a becomes SS_LCTL(SS_LALT(SS_TAP(X_A)))
+               (aand (mugur--mods-plus-key k)
+                     ;; Wrap the last key around SS_TAP
+                     `(,@(butlast it)
+                       ,(format "SS_TAP(%s)" (car (last it))))                     
+                     (--reduce-r (format "%s(%s)" it acc) it)
+                     (s-replace "MOD_" "SS_" it)
+                     (s-replace "KC_" "X_" it))
+
+               ;; A simple key becomes SS_TAP(X_KEY)
+               (aand (mugur--keycode k)
+                     (format "SS_TAP(%s)"
+                             (s-replace "KC_" "X_" it)))))
+            key)
+         ;; Only a wf macro if all the elements have a SEND_STRING equivalent
+         (and (not (member nil it))
+              (format "SEND_STRING(%s)"
+                      (mapconcat #'identity it " "))))
+   ;;A simple string
+   (and (stringp key)
+        (format "SEND_STRING(\"%s\")" key))))
+
+(defun mugur--user-defined (key)
+  "User defined `KEY'."
+  (aand (alist-get key mugur-user-defined-keys)
+        (mugur--keycode it)))
 
 (defun mugur--oneshot (key)
   (pcase key
@@ -428,665 +526,180 @@ Return nil if any of the modifiers or keys are invalid."
              layer))
     (`(lm ,layer ,mod)
      (aand (mugur--mod mod)
-           (format "LM(%s %s)" layer it)))
+           (format "LM(%s, %s)" layer it)))
     (`(lt ,layer ,kc)
      (aand (mugur--keycode kc)
-           (format "LT(%s %s)" layer it)))))
+           (format "LT(%s, %s)" layer it)))))
 
 
+;; Mugur Layers and their transformation into qmk equivalent
+(defconst mugur--rules-mk
+  "LEADER_ENABLE = ${leader-enable}
+   RGBLIGHT_ENABLE = ${rgblight-enable}
+   FORCE_NKRO = ${force-nkro}")
 
+(defconst mugur--config-h
+  "#undef TAPPING_TERM
+   #define TAPPING_TERM ${tapping-term}
+   #define LEADER_TIMEOUT ${leader-timeout}
 
-;;;; Combos
-(cl-defstruct mugur--combo
-  name keys expansion)
-
-(defun mugur--combo-define (combo)
-  "Define a new combo from COMBO.
-A combo has two keys followed by anything that can be a key
-definition."
-  (let* ((keycodes (mapcar #'mugur--keycode (butlast combo)))
-         (last (last combo))
-         (ss (mugur--macro-transform-keys
-              (if (listp (car last))
-                  (car last)
-                last))))
-    (list keycodes ss)))
-
-(defun mugur--combo (combo name)
-  "Create a new `mugur--combo' named NAME from COMBO."
-  (let ((c (mugur--combo-define combo)))
-    (make-mugur--combo
-     :name name
-     :keys (cl-reduce (lambda (item1 item2)
-                        (concat item1 ", " item2))
-                      (car (butlast c)))
-     :expansion (car (last c)))))
-
-
-;; Tap Dance
-(cl-defstruct mugur--tapdance
-  name key-name key1 key2)
-
-(defun mugur--tapdance-pp (key1 key2)
-  "Does KEY1 followed by KEY2 look like a tapdance?"
-  (and (and key1 key2)
-       (and (not (mugur--modifier-key-p key1))
-            (mugur--keycode key1))
-       (and (not (mugur--modifier-key-p key2))
-            (or (mugur--keycode key2)
-                (symbolp key2)))
-       t))
-
-(defun mugur--tapdance (keys)
-  "Create a new tapdance out of KEYS."
-  (when (= (length keys) 2)
-    (let ((key1 (car keys))
-          (key2 (cadr keys)))
-      (when (mugur--tapdance-pp key1 key2)
-        (make-mugur--tapdance
-         :name (format "TD_%s_%s"
-                       (mugur--keycode-raw key1)
-                       (or (mugur--keycode-raw key2)
-                           (upcase (symbol-name key2))))
-         :key-name (format "TD(TD_%s_%s)"
-                           (mugur--keycode-raw key1)
-                           (or (mugur--keycode-raw key2)
-                               (upcase (symbol-name key2))))
-         :key1 (mugur--keycode key1)
-         :key2 (or (mugur--keycode key2)
-                   (upcase (symbol-name key2))))))))
-
-(defun mugur--tapdance-extract (keys)
-  "Extract all tapdances from KEYS."
-  (cl-remove-duplicates
-   (remove nil
-           (mapcar (lambda (key)
-                (aif (mugur--tapdance key)
-                    it
-                  nil))
-              keys))
-   :key #'mugur--tapdance-key-name
-   :test #'string-equal))
-
-
-;; fns, keys definitions containing an fbound emacs symbol.  An fbound emacs
-;; symbol as a key definition will be bound to one of the available keys.
-(cl-defstruct mugur--fn
-  kbd fn)
-
-(defconst mugur--fns nil
-  "List of key definitions containing functions.")
-
-(defconst mugur--available-keys nil
-  "List of available keys for fns functionality.")
-
-(defun mugur--fns-reset ()
-  "Prepare for another keymap definition."
-  (setf mugur--fns nil)
-  (setf mugur--available-keys
-        '((C-f3) (C-f4) (C-f5) (C-f6) (C-f7) (C-f8)
-          (C-f9) (C-f10) (C-f11) (C-f12))))
-
-(defun mugur--fn-pp (fn)
-  "Is FN a key definition for an EMACS function?"
-  (and (symbolp fn)
-       (fboundp fn)))
-
-(defun mugur--fn (fn)
-  "Create a new FN object.
-Reduce the number of available keys if the FN is new."
-  (if mugur--available-keys
-      (let ((kbd (car mugur--available-keys))
-            (prev-count (length mugur--fns)))
-        (cl-pushnew
-         (make-mugur--fn :kbd kbd :fn fn)
-         mugur--fns
-         :test #'equal
-         :key #'mugur--fn-fn)
-        (when (> (length mugur--fns)
-                 prev-count)
-          (setf mugur--available-keys
-                (cdr mugur--available-keys)))
-        (cl-find fn mugur--fns
-                 :key #'mugur--fn-fn
-                 :test #'equal))
-    (error "No more keys available for assigning Emacs
-    functions")))
-
-(defun mugur--available-keys ()
-  "Return the remaining keys available for fns."
-  mugur--available-keys)
-
-(defun mugur--fns ()
-  "Return the already defined fns."
-  (copy-sequence mugur--fns))
-
-(defun mugur--keybindings (fns)
-  "Bind-key all fbound symbols in FNS to their respective key.
-This function only returns these `bind-key' forms as a string but
-does not eval them."
-  (with-temp-buffer
-    (cl-dolist (fn fns)
-      (insert (format "(bind-key (kbd \"<%s>\") '%s)\n"
-                      (symbol-name
-                       (car (mugur--fn-kbd
-                           fn)))
-                      (mugur--fn-fn fn))))
-    (buffer-string)))
-
-(defun mugur--create-keybindings-file (keymap)
-  "Create the file holding all the `bind-key' forms for KEYMAP."
-  (with-temp-file (concat (file-name-directory
-                           (locate-library "mugur"))
-                          "keybindings.el")
-    (insert (mugur--keybindings
-             (mugur--keymap-fns
-              keymap)))))
-
-(defun mugur-load-keybindings ()
-  "Load the last generated keybindingd.el file."
-  (interactive)
-  (let ((kbds (concat (file-name-directory (locate-library "mugur"))
-                      "keybindings.el")))
-    (when (file-exists-p kbds)
-      (load-file kbds))))
-
-(cl-defstruct mugur--layer
-  name
-  index
-  keys
-  leds
-  orientation)
-
-(cl-defstruct mugur--keymap
-  tapping-term
-  combo-term
-  rgblight-enable
-  rgblight-animations
-  force-nkro
-  layers
-  combos
-  macros
-  tapdances
-  fns)
-
-(cl-defun mugur--new-layer (name index keys &key (leds nil) (orientation 'horizontal))
-  "Create a new layer named NAME.
-A layer also has an INDEX a list of KEYS, and ORIENTATION and
-optional a LEDs specification which is a list of length 3
-containing ones and zeroes."
-  (make-mugur--layer
-   :name name
-   :index index
-   :keys keys
-   :leds leds
-   :orientation orientation))
-
-(cl-defun mugur--new-keymap (&key layers
-                                  (tapping-term nil) (combo-term nil)
-                                  (force-nkro t)
-                                  (rgblight-enable nil) (rgblight-animations nil)
-                                  (combos nil) (macros nil) (tapdances nil)
-                                  (fns nil))
-  "Create a new keymap with NAME, KEYBOARD type and LAYERS."
-  (make-mugur--keymap
-   :tapping-term tapping-term
-   :combo-term combo-term
-   :rgblight-enable rgblight-enable
-   :rgblight-animations rgblight-animations
-   :force-nkro force-nkro
-   :layers layers
-   :combos combos
-   :macros macros
-   :tapdances tapdances
-   :fns fns))
-
-(defconst mugur--keymap nil
-  "The user defined keymaps.")
-
-(defun mugur--keymap ()
-  "Return the user defined keymap."
-  mugur--keymap)
-
-(defun mugur--keymap-set (keymap)
-  "Remember the KEYMAP for later use."
-  (setf mugur--keymap keymap))
-
-(defun mugur--leds (layer)
-  "Extract the leds specification from LAYER.
-The leds specification can be given as a second or third argument
-in every layer.  If no leds specification exists, return nil."
-  (if (> (length layer) 2)
-      (if (and (listp (cadr layer))
-               (= (length (cadr layer)) 3))
-          (cadr layer)
-        (if (and (listp (caddr layer))
-                 (= (length (caddr layer)) 3))
-            (caddr layer)
-          nil))))
-
-(defun mugur--orientation (layer)
-  "Return the LAYER orientaton.
-The orientation can optionally be given in every layer as a
-second or third argument."
-  (if (> (length layer) 2)
-      (if (symbolp (cadr layer))
-          (cadr layer)
-        (if (symbolp (caddr layer))
-            (caddr layer)
-          nil))))
-
-(defun mugur--keys (layer)
-  "Return the keys list for this LAYER."
-  (car (last layer)))
-
-(defun mugur--replace-custom-keys (custom-keys keys)
-  "Replace all entries from CUSTOM-KEYS in KEYS."
-  (if custom-keys
-      (let ((names (mapcar #'car custom-keys)))
-        (mapcar (lambda (key)
-             (if (member (car key) names)
-                 (cadr (cl-find (car key) custom-keys :key #'car))
-               key))
-           keys))
-    ;; Nothing to replace.
-    keys))
-
-;;;###autoload
-(cl-defun mugur-keymap (&key (tapping-term 180)
-                             (combo-term 100)
-                             (rgblight-enable nil)
-                             (rgblight-animations nil)
-                             (force-nkro t)
-                             (layers nil)
-                             (combos nil)
-                             (with-keys nil))
-  "Define a qmk keymap named NAME for keyboard KEYBOARD."
-  ;; Prepare for any mugur-key specifying emacs functions.
-  (mugur--fns-reset)
-  (mugur--keymap-set
-   (mugur--new-keymap
-    :tapping-term tapping-term
-    :combo-term combo-term
-    :rgblight-enable rgblight-enable
-    :rgblight-animations rgblight-animations
-    :force-nkro force-nkro
-    :layers
-    (let ((index 0))
-      (mapcar (lambda (layer)
-           (let ((name (car layer))
-                 (leds (mugur--leds layer))
-                 (keys (mugur--keys layer))
-                 (orientation (mugur--orientation layer)))
-             (setf index (+ 1 index))
-             (mugur--new-layer (upcase name) index
-                               (mugur--transform-keys
-                                (mugur--replace-custom-keys with-keys keys))
-                               :leds leds
-                               :orientation orientation)))
-         layers))
-    
-    :combos
-    (let ((index 0))
-      (mapcar (lambda (combo)
-           (setf index (+ 1 index))
-           (mugur--combo combo (format "COMBO_%s" index)))
-         combos))
-
-    :macros
-    (cl-remove-duplicates
-     (apply #'append
-            (mapcar (lambda (layer)
-                 (mugur--extract-macros
-                  (mugur--replace-custom-keys
-                   with-keys (mugur--keys layer))))
-               layers))
-     :key #'mugur--macro-name
-     :test #'string-equal)
-
-    :tapdances
-    (cl-remove-duplicates
-     (apply #'append
-            (mapcar (lambda (layer)
-                 (mugur--tapdance-extract
-                  (mugur--replace-custom-keys
-                   with-keys (mugur--keys layer))))
-               layers))
-     :key #'mugur--tapdance-name
-     :test #'string-equal)
-
-    :fns
-    (mugur--fns))))
-
-;;;; C Code Generators
-(defun mugur--c-custom-keycodes (macros)
-  "Use MACROS to generate the custom_keycodes enum."
-  (with-temp-buffer
-    (insert "enum custom_keycodes {\n\tEPRM = SAFE_RANGE,\n")
-    (cl-dolist (keycode macros)
-      (insert (format "\t%s,\n"
-                      (upcase (mugur--macro-name keycode)))))
-    (insert "};\n\n")
-    (buffer-string)))
-
-(defun mugur--c-process-record-user (macros)
-  "Use MACROS to generate the process_record_user function.
-Each macro in MACROS is a switch case in this qmk function."
-  (with-temp-buffer
-    (insert "bool process_record_user(uint16_t keycode, keyrecord_t *record) {\n")
-    (insert "\tif (record->event.pressed) {\n")
-    (insert "\t\tswitch (keycode) {\n")
-    (insert "\t\tcase EPRM:\n")
-    (insert "\t\t\teeconfig_init();\n")
-    (insert "\t\t\treturn false;\n")
-    (cl-dolist (macro macros)
-      (insert (format "\t\tcase %s:\n" (mugur--macro-name macro)))
-      (insert (format "\t\t\tSEND_STRING(%s);\n" (mugur--macro-expansion macro)))
-      (insert "\t\t\treturn false;\n"))
-    (insert "\t\t}\n\t}\n\treturn true;\n}\n\n")
-    (buffer-string)))
-
-(defun mugur--c-tapdance-enum (tapdances)
-  "Use TAPDANCES to generate all the tapdance enum entries."
-  (with-temp-buffer
-    (insert "enum {\n")
-    (cl-dolist (tapdance tapdances)
-      (insert (format "\t%s,\n" (mugur--tapdance-name tapdance))))
-    (insert "};\n\n")
-    (buffer-string)))
-
-(defun mugur--c-tapdance-actions (tapdances)
-  "Use TAPDANCES to generate the tap_dance_actions array."
-  (with-temp-buffer
-    (insert "qk_tap_dance_action_t tap_dance_actions[] = {\n")
-    (cl-dolist (tapdance tapdances)
-      (insert
-       (if (s-contains-p "KC_" (mugur--tapdance-key2 tapdance))
-           (format "\t[%s] = ACTION_TAP_DANCE_DOUBLE(%s, %s),\n"
-                      (mugur--tapdance-name tapdance)
-                      (mugur--tapdance-key1 tapdance)
-                      (mugur--tapdance-key2 tapdance))
-         ;; This is a layer, not a key
-         (format "\t[%s] = ACTION_TAP_DANCE_LAYER_TOGGLE(%s, %s),\n"
-                      (mugur--tapdance-name tapdance)
-                      (mugur--tapdance-key1 tapdance)
-                      (mugur--tapdance-key2 tapdance)))))
-    (insert "};\n\n")
-    (buffer-string)))
-
-(defun mugur--c-combos-combo-events (combos)
-  "Use COMBOS to generate the combo_event enum."
-  (with-temp-buffer
-    (insert "enum combo_events {\n")
-    (cl-dolist (combo combos)
-      (insert (format "\t%s,\n" (upcase (mugur--combo-name combo)))))
-    (insert "};\n\n")
-    (buffer-string)))
-
-(defun mugur--c-combos-progmem (combos)
-  "Use COMBOS to generate the progmem arrays."
-  (with-temp-buffer
-    (cl-dolist (combo combos)
-      (insert
-       (format "const uint16_t PROGMEM %s_combo[] = {%s, COMBO_END};\n"
-               (mugur--combo-name combo) (mugur--combo-keys combo))))
-    (insert "\n")
-    (buffer-string)))
-
-(defun mugur--c-combos-key-combos (combos)
-  "Use COMBOS to generate the key_combos array."
-  (with-temp-buffer
-    (insert "combo_t key_combos[COMBO_COUNT] = {\n")
-    (cl-dolist (combo combos)
-      (insert (format "\t[%s] = COMBO_ACTION(%s_combo),\n"
-                      (upcase (mugur--combo-name combo))
-                      (mugur--combo-name combo))))
-    (insert "};\n\n")
-    (buffer-string)))
-
-(defun mugur--c-combos-process-combo-event (combos)
-  "Use COMBOS to generate the process_combo_event function."
-  (with-temp-buffer
-    (insert "void process_combo_event(uint8_t combo_index, bool pressed) {\n")
-    (insert "\tswitch(combo_index) {\n")
-    (cl-dolist (combo combos)
-      (insert (format "\tcase %s:\n" (upcase (mugur--combo-name combo))))
-      (insert "\t\tif (pressed) {\n")
-      (insert (format "\t\t\tSEND_STRING%s;\n" (mugur--combo-expansion combo)))
-      (insert "\t\t}\n")
-      (insert "\t\tbreak;\n"))
-    (insert "\t}\n")
-    (insert "}\n\n")
-    (buffer-string)))
-
-(defun mugur--c-layer-codes (layers)
-  "Use LAYERS to generate the layer_codes enum.
-Each entry in the enum represents the layer name."
-  (with-temp-buffer
-    (let ((layers (mapcar #'mugur--layer-name layers)))
-      (insert "enum layer_codes {\n")
-      (cl-dolist (layer layers)
-        (insert (format "\t%s,\n" layer)))
-      (insert "};\n\n"))
-    (buffer-string)))
-
-(defun mugur--c-matrix-init-user ()
-  "Generate the keymap.c matrix_init_user functions.
-This qmk function runs just one time when the keyboard inits."
-  "void matrix_init_user(void) {
-#ifdef RGBLIGHT_COLOR_LAYER_0
-  rgblight_setrgb(RGBLIGHT_COLOR_LAYER_0);
-#endif
-};
-
+   /* Mouse */
+   //#define MOUSEKEY_INTERVAL    ${mousekey-interval}
+   //#define MOUSEKEY_DELAY       ${mousekey-delay}
+   //#define MOUSEKEY_TIME_TO_MAX ${mousekey-time-to-max}
+   //#define MOUSEKEY_MAX_SPEED 7 ${mousekey-max-speed}
+   //#define MOUSEKEY_WHEEL_DELAY ${mousekey-wheel-delay}
+   
+   #define FORCE_NKRO
+   #undef RGBLIGHT_ANIMATIONS
 ")
 
-(defun mugur--c-layer-state-set-user (keymap)
-  "Generate the keymap.c layer_state_set_user function using KEYMAP.
-This qmk function runs whenever there is a layer state change."
-  (with-temp-buffer
-    (insert "layer_state_t layer_state_set_user(layer_state_t state) {\n")
-    (insert "\tergodox_board_led_off();\n")
-    (insert "\tergodox_right_led_1_off();\n")
-    (insert "\tergodox_right_led_2_off();\n")
-    (insert "\tergodox_right_led_3_off();\n\n")
-    (insert "\tuint8_t layer = biton32(state);\n")
-    (insert "\tswitch(layer) {\n")
-    (cl-dolist (layer (mugur--keymap-layers keymap))
-      (insert (format "\t\tcase %s:\n" (mugur--layer-name layer)))
-      (awhen (mugur--layer-leds layer)
-        (cl-dotimes (i (length it))
-          (when (= (nth i it) 1)
-            (insert (format "\t\t\tergodox_right_led_%s_on();\n" i)))))
-      (insert "\t\t\tbreak;\n"))
-    (insert "\t}\n")
-    (insert "\treturn state;\n")
-    (insert "};\n\n")
-    (buffer-string)))
+(defconst mugur--keymap-c
+  "#include QMK_KEYBOARD_H
+   #include \"version.h\"
+   
+   enum layer_codes {
+       ${layer-codes}
+   };
+   
+   enum custom_keycodes {
+       EPRM = SAFE_RANGE,
+       ${custom-keycodes}
+   };
+   
+   const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+       ${layers}
+   };
+   
+   bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+       if (record->event.pressed) {
+           switch (keycode) {
+   	case EPRM:
+   	    eeconfig_init();
+   	    return false;
+           ${macro-keys}
+   		
+   	}
+       }
+      return true;
+   }
+  ")
 
-(defconst mugur--layout-vertical
-  "
-$1,  $2,  $3,  $4,  $5,  $6,  $7,
-$8,  $9,  $10, $11, $12, $13, $14,
-$15, $16, $17, $18, $19, $20,
-$21, $22, $23, $24, $25, $26, $27,
-$28, $29, $30, $31, $32,
-                         $33, $34,
-                              $35,
-                    $36, $37, $38,
+(defconst mugur--macro-key
+  "case ${key-name}:
+       ${contents};
+       return false;
+")
 
-$39, $40, $41, $42, $43, $44, $45,
-$46, $47, $48, $49, $50, $51, $52,
-     $53, $54, $55, $56, $57, $58,
-$59, $60, $61, $62, $63, $64, $65,
-$66, $67, $68, $69, $70,
-                         $71, $72,
-                              $73,
-                    $74, $75, $76")
+(defconst mugur--layout-keymap
+  "[${layer-name}] = ${layout-name}(${layer-keys})")
 
-(defconst mugur--layout-horizontal
-  "
- $1,  $2,  $3,  $4,  $5,  $6,  $7,
- $15, $16, $17, $18, $19, $20, $21,
- $29, $30, $31, $32, $33, $34,
- $41, $42, $43, $44, $45, $46, $47,
- $55, $56, $57, $58, $59,
-                          $65, $66,
-                               $69,
-                     $71, $72, $73,
+(defun mugur--to-string (val)
+  (pcase val
+    ((pred numberp)    (number-to-string val))
+    ((pred stringp)    val)
+    ((pred symbolp)    (symbol-name val))
+    ((pred characterp) (char-to-string val))    
+    (`(,v) (mugur--force-string v))))
 
- $8,  $9,  $10, $11, $12, $13, $14,
- $22, $23, $24, $25, $26, $27, $28,
-      $35, $36, $37, $38, $39, $40,
- $48, $49, $50, $51, $52, $53, $54,
-           $60, $61, $62, $63, $64,
-                          $67, $68,
-                               $70,
-                     $74, $75, $76")
+(defun mugur--transform-layer (layer)
+  "Transform the mugur keys in the `LAYER' list to their qmk equivalent.
+The car of the `LAYER' is the layer name, which is preserved."
+  (aand (--map (or (mugur--keycode it)
+                   (error (format "Invalid mugur keycode, %s" it)))
+               (cdr layer))
+        `(,(or (mugur--to-string (car layer))
+               (error (format "Invalid layer name, %s" (car layer))))
+          ,@it)))
 
-(defun mugur--vertical-orientation-p (layer)
-  "Does this LAYER have vertical orientation?"
-  (equal (mugur--layer-orientation layer)
-     'vertical))
+(let ((layers '(((base) a "what" c d e)
+                ("numbers" 1 2 3 "this is" 5))))
+  (mapcar #'mugur--transform-layer layers))
 
-(defun mugur--c-keymaps (keymap)
-  "Generate the qmk keymaps matrix based on KEYMAP.
-The keymaps matrix contains all the layers and keys."
-  (with-temp-buffer
-    (insert "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n\n")
-    (insert
-     (cl-reduce
-      (lambda (item1 item2)
-        (concat item1 ", \n\n" item2))
-      (mapcar (lambda (layer)
-           (s-format (format "[$0] = LAYOUT_ergodox(\n%s)"
-                             (if (mugur--vertical-orientation-p layer)
-                                 (s-trim mugur--layout-vertical)
-                               (s-trim mugur--layout-horizontal)))
-                     'elt
-                     (cons (mugur--layer-name layer)
-                           (mugur--layer-keys layer))))
-         (mugur--keymap-layers keymap))))
-    (insert "\n};\n\n\n")
-    (buffer-string)))
+(defun mugur--write-file (name values)
+  (with-temp-file
+      (aand (concat (file-name-as-directory mugur-qmk-path)
+                    (file-name-as-directory "keyboards")
+                    (file-name-as-directory mugur-keyboard-name)
+                    (file-name-as-directory "keymaps")
+                    (file-name-as-directory mugur-keymap-name))
+            (and (or (file-directory-p it)
+                     (make-directory it))
+                 it)
+            (concat it name))
+    (aand (s-format (pcase name
+                      ("rules.mk" mugur--rules-mk)
+                      ("config.h" mugur--config-h)
+                      ("keymap.c" mugur--keymap-c))
+                    'aget
+                    values)
+          (insert it))))
 
-(defun mugur--c-file-path (file)
-  "Build the qmk C FILE path based on KEYMAP and KEYBOARD."
-  (let ((mugur-path
-         (concat (file-name-as-directory mugur-qmk-path)
-                 (file-name-as-directory "keyboards/ergodox_ez/keymaps")
-                 (file-name-as-directory "mugur"))))
-    (unless (file-directory-p mugur-path)
-      (make-directory mugur-path))
-    (concat mugur-path file)))
+(defun mugur--write-rules-mk ()
+  (mugur--write-file
+   "rules.mk"
+   `((leader-enable   . ,mugur-leader-enable)
+     (rgblight-enable . ,mugur-rgblight-enable)
+     (force-nkro      . ,mugur-forcenkro-enable))))
 
-(defun mugur--generate-keymap-file (keymap)
-  "Generate the qmk keymap.c file for KEYMAP."
-  (let ((layers (mugur--keymap-layers keymap))
-        (macros (mugur--keymap-macros keymap))
-        (tapdances (mugur--keymap-tapdances keymap))
-        (combos (mugur--keymap-combos keymap)))
-    (with-temp-file (mugur--c-file-path "keymap.c")
-      (insert "#include QMK_KEYBOARD_H\n")
-      (insert "#include \"version.h\"\n\n")
-      (insert "#define ___ KC_TRNS\n")
-      (insert "#define _X_ KC_NO\n\n")
-      (insert (mugur--c-layer-codes layers))
-      (insert (mugur--c-custom-keycodes macros))
-      (when tapdances
-        (insert (mugur--c-tapdance-enum tapdances))
-        (insert (mugur--c-tapdance-actions tapdances)))
-      (when combos
-        (insert (mugur--c-combos-combo-events combos))
-        (insert (mugur--c-combos-progmem combos))
-        (insert (mugur--c-combos-key-combos combos))
-        (insert (mugur--c-combos-process-combo-event combos)))
-      (insert (mugur--c-keymaps keymap))
-      (insert (mugur--c-process-record-user macros))
-      (insert (mugur--c-matrix-init-user))
-      (insert (mugur--c-layer-state-set-user keymap)))))
+(defun mugur--write-config-h ()
+  (mugur--write-file
+   "config.h"
+   `((tapping-term    . ,mugur-tapping-term)
+     (combo-term      . ,mugur-combo-term)
+     (rgblight-enable . ,mugur-rgblight-enable)
+     (force-nkro      . ,mugur-forcenkro-enable))))
 
-(defun mugur--generate-config-file (keymap)
-  "Generate the qmk config.h file for KEYMAP."
-  (with-temp-file (mugur--c-file-path "config.h")
-    (insert "#undef TAPPING_TERM\n")
-    (insert (format "#define TAPPING_TERM %s\n" (mugur--keymap-tapping-term keymap)))
-    (insert (format "#define COMBO_TERM %s\n" (mugur--keymap-combo-term keymap)))
-    (when (mugur--keymap-force-nkro keymap)
-      (insert "#define FORCE_NKRO\n"))
-    (unless (mugur--keymap-rgblight-animations keymap)
-      (insert "#undef RGBLIGHT_ANIMATIONS\n"))
-    (awhen (mugur--keymap-combos keymap)
-      (insert (format "#define COMBO_COUNT %s\n"
-                      (length it))))))
+(defun mugur--write-keymap-c (layout)
+  (let* ((qmk-layout-raw
+          (mapcar #'mugur--transform-layer layout))
+         (qmk-layout
+          (--tree-map (if (and (stringp it)
+                               (s-match "^SEND_STRING" it))
+                          (format "MACRO_%s" (md5 it))
+                        it)
+                      qmk-layout-raw) )
+         (macros (--map (list it (format "MACRO_%s" (md5 it)))
+                        (--filter (and (stringp it)
+                                       (s-match "^SEND_STRING" it))
+                                  (-flatten qmk-layout-raw)))))
 
-(defun mugur--generate-rules-file (keymap)
-  "Generate the qmk rules.mk file for KEYMAP."
-  (with-temp-file (mugur--c-file-path "rules.mk")
-    (when (mugur--keymap-tapdances keymap)
-      (insert "TAP_DANCE_ENABLE = yes\n"))
-    (when (mugur--keymap-combos keymap)
-      (insert "COMBO_ENABLE = yes\n"))
-    (when (mugur--keymap-force-nkro keymap)
-      (insert "FORCE_NKRO = yes\n"))
-    (insert (format "RGBLIGHT_ENABLE = %s\n"
-                    (if (mugur--keymap-rgblight-enable keymap)
-                        "yes"
-                      "no")))))
+    (mugur--write-file
+     "keymap.c"
+     `((layer-codes
+        . ,(--reduce-r (format "%s, \n       %s"
+                               (upcase acc) (upcase it))
+                       (mapcar #'car layout)))
 
-;;;###autoload
-(defun mugur-generate (&optional keymap)
-  "Generate all the qmk files for the selected KEYMAP.
-The files include keymap.c, config.h and rules.mk."
-  (interactive)
-  (unless keymap
-    (setf keymap (mugur--keymap)))
-  (mugur--generate-keymap-file keymap)
-  (mugur--generate-config-file keymap)
-  (mugur--generate-rules-file  keymap))
+       (custom-keycodes
+        . ,(--reduce-r (format "%s, \n       %s" acc it)
+                       (mapcar #'cadr macros)))
 
-;;;###autoload
-(defun mugur-make (&optional keymap)
-  "Call make on the selected KEYMAP.
-Opens a new `compilation-mode' buffer to view the results."
-  (interactive)
-  (unless keymap
-    (setf keymap (mugur--keymap)))
-  (progn
-    (let ((b (generate-new-buffer "make mykeyboard")))
-      (with-current-buffer b
-        (compilation-mode)
-        (local-set-key (kbd "q") 'kill-current-buffer)
-        (start-process "make" b "make"
-                       "-C"
-                       mugur-qmk-path
-                       "ergodox_ez:mugur"))
-      (switch-to-buffer "make mykeyboard"))))
+       (layers
+        . ,(--reduce-r (format "%s, \n       %s" it acc)
+                       (mapcar (lambda (k)
+                            (s-format mugur--layout-keymap 'aget
+                                      `((layer-name . ,(upcase (car k)))
+                                        (layout-name . ,(or mugur-layout-name
+                                                            (error "mugur-layout-name not set.")))
+                                        (layer-keys . ,(--reduce-r (format "%s, %s" it acc) (cdr k))))))
+                          qmk-layout)))
 
-;;;###autoload
-(defun mugur-flash (&optional keymap)
-  "Flash the KEYMAP."
-  (interactive)
-  (unless keymap
-    (setf keymap (mugur--keymap)))
-  (let ((hex (format "%s/.build/ergodox_ez_mugur.hex"
-                     mugur-qmk-path)))
-    (progn (start-process "flashing"
-                          "flash mykeyboard"
-                          "wally-cli"
-                          hex)
-           (switch-to-buffer "flash mykeyboard")))
-  (mugur--create-keybindings-file keymap)
-  (mugur-load-keybindings))
+       (macro-keys
+        . ,(--reduce-r (format "%s\n         %s" it acc)
+                       (mapcar (lambda (k)
+                            (s-format mugur--macro-key 'aget
+                                      `((key-name . ,(cadr k))
+                                        (contents . ,(car k)))))
+                          macros)))))
+    
+    ))
 
-;;;###autoload
-(defun mugur-build (&optional keymap)
-  "Build the KEYMAP (generate and make)."
-  (interactive)
-  (unless keymap
-    (setf keymap (mugur--keymap)))
-  (mugur-generate keymap)
-  (mugur-make keymap))
+(defun mugur-mugur (layout)
+  (mugur--write-rules-mk)
+  (mugur--write-keymap-c layout)
+  )
+
 
 (provide 'mugur)
 
