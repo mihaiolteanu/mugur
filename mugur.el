@@ -44,7 +44,7 @@
   :group 'mugur)
 
 (defcustom mugur-keyboard-name nil
-  "The name of the qmk keyboard in use."
+  "The name of your qmk keyboard."
   :type '(string :tag "name")
   :group 'mugur)
 
@@ -52,7 +52,7 @@
   "The layout name used in the keymaps matrix.
 Check the 'uint16_t keymaps' matrix in the default keymap.c of
 your keyboard. Some have just \"LAYOUT\", others
-\"LAYOUT_ergodox\", etc."
+\"LAYOUT_ergodox\", etc. Adapt accordingly."
   :type '(string :tag "name")
   :group 'mugur)
 
@@ -106,61 +106,69 @@ This is transformed into the qmk KC_TRANSPARENT keycode."
   :type  '(symbol :tag "symbol")
   :group 'mugur)
 
-;; Mugur Kecodes and their transformation into qmk equivalent
-(defun mugur--keycode (key)
-  "Transform the mugur `KEY' into the qmk keycode equivalent."
-  (or (mugur--letter key)
-      (mugur--digit  key)
-      (mugur--f      key)
-      (mugur--symbol key)
-      ;; Try to interpret strings of length one as characters (i.e. ">" as ?\>)
-      (aand (stringp key)
-            (= (length key) 1)
-            (mugur--keycode (string-to-char key)))
-      (mugur--oneshot      key)
-      (mugur--layer-toggle key)
-      (mugur--modifier     key)
-      (mugur--modtap       key)
-      (mugur--macro        key)
-      (mugur--user-defined key)
-      (and (listp key)                  ;Destructure '(k) and search for 'k
-           (= (length key) 1)
-           (mugur--keycode (car key)))))
+;;; Mugur Kecodes and their transformation into qmk equivalent
+(defun mugur--keycode (mugur-key)
+  "Return the qmk-keycode for the `MUGUR-KEY'.
+`MUGUR-KEY' is any of the valid symbols, digits, strings or lists
+that can appear in a mugur-layout.  The returned string is what
+would one use in the keymaps matrix in the keymap.c qmk file.  If
+no transformation is possible, return nil."
+  (or (mugur--letter       mugur-key)
+      (mugur--digit        mugur-key)
+      (mugur--f            mugur-key)
+      (mugur--symbol       mugur-key)
+      ;; Strings can always just be regarded as macros, but we can try and
+      ;; interpret strings of a single character as just that character.  So
+      ;; instead of SEND_STRING(\":\") we can have KC_COLON as a return value.
+      ;; For special characters that do not have a qmk keycode, just continue
+      ;; and use a macro instead.
+      (and (stringp mugur-key)
+           (= (length mugur-key) 1)
+           (mugur--keycode (string-to-char mugur-key)))
+      (mugur--oneshot      mugur-key)
+      (mugur--layer-toggle mugur-key)
+      (mugur--modifier     mugur-key)
+      (mugur--modtap       mugur-key)
+      (mugur--macro        mugur-key)
+      (mugur--user-defined mugur-key)
+      (and (listp mugur-key)            ;Destructure '(k) and search for 'k
+           (= (length mugur-key) 1)
+           (mugur--keycode (car mugur-key)))))
 
-(defun mugur--letter (key)
-  "Match where `KEY' is 'letter, \"letter\", '(letter) o \"letter\".
-Letters from a-z, lowercase only."
-  (aand (pcase key
-          ((pred symbolp) key)
-          ((pred stringp) key)
-          (`(,k) k))        
-        (if (symbolp it)
-            (symbol-name it)
-          it)
-        (and (string-match "^[a-z]$" it)
+(defun mugur--letter (mugur-key)
+  "Return the qmk-keycode for the `MUGUR-KEY' letter.
+`MUGUR-KEY' is a single downcase letter, between 'a' and 'z', and
+can be specified either as a symbol or as a string (i.e. 'a or
+\"a\" are both transformed to the qmk-keycode KC_A)."
+  (aand (pcase mugur-key
+          ((pred symbolp) (symbol-name mugur-key))
+          ((pred stringp) mugur-key))        
+        (and (let ((case-fold-search nil))
+               (string-match "^[a-z]$" it))
              it)
         (format "KC_%s" (upcase it))))
 
-(defun mugur--digit (key)
-  "Match where `KEY' is 'digit, \"digit\", or '(digit).
-Digits from 0-9."
-  (aand (pcase key
-          ((pred integerp) (number-to-string key))
-          ((pred stringp ) key)
-          (`(,k) (and (integerp k)
-                      (number-to-string k))))
+(defun mugur--digit (mugur-key)
+  "Return the qmk-keycode for the `MUGUR-KEY' digit.
+`MUGUR-KEY' is a digit between '0' and '9' and can also be
+specified as a string (i.e. 5 or \"5\" are both transformed to
+the qmk-keycode KC_5)."
+  (aand (pcase mugur-key
+          ((pred integerp) (number-to-string mugur-key))
+          ((pred stringp ) mugur-key))
         (and (string-match "^[0-9]$" it)
              it)
         (format "KC_%s" it)))
 
-(defun mugur--f (key)
-  "Match where `KEY' is 'fxy \"fxy\" or '(fxy).
-xy from 0-24, f lowercase or uppercase."
-  (aand (pcase key
-          ((pred symbolp) (symbol-name key))
-          ((pred stringp) key)
-          (`(,k) (and (symbolp k)
-                      (symbol-name k))))
+(defun mugur--f (mugur-key)
+  "Return the qmk-keycode for the `MUGUR-KEY' function key.
+`MUGUR-KEY' is a function key between 'f1' and 'f24', uppercase
+or lowercase, and can also be specified as a string (i.e. 'f6,
+'F6, \"f6\" or \"F6\" are all transformed to the qmk-keycode
+KC_F6)"
+  (aand (pcase mugur-key
+          ((pred symbolp) (symbol-name mugur-key))
+          ((pred stringp) mugur-key))
         (s-match (rx bol
                      (or (seq "f1" digit)
                          (seq "f2" (in "0-4"))
@@ -169,9 +177,13 @@ xy from 0-24, f lowercase or uppercase."
                  it)
         (format "KC_%s" (upcase (car it)))))
 
-(defun mugur--symbol (key)
-  "Match `KEY' to any of the qmk keycodes, if any."
-  (pcase key
+(defun mugur--symbol (mugur-key)
+  "Return the qmk-keycode for the `MUGUR-KEY' basic key.
+`MUGUR-KEY' is any of the basic keys, like punctuation,
+modifiers, media keys, mouse keys, symbols like '?' and '.' and
+other special keys that all have a direct qmk-keycode
+equivalent."
+  (pcase mugur-key
     ;; Punctuation
     ((or 'enter             'ent       ) "KC_ENTER"               ) ;Return (Enter)
     ((or 'escape            'esc       ) "KC_ESCAPE"              ) ;Escape
@@ -321,9 +333,9 @@ xy from 0-24, f lowercase or uppercase."
     (    'kp_equal_as400                 "KP_EQUAL_AS400"         ) ;Keypad = on AS/400 keyboards
 
     ;; Special Keys
-    ((or 'no     mugur-ignore-key      ) "KC_NO"                  ) ;Ignore this key (NOOP)
-    ((or 'trn    mugur-transparent-ke  ) "KC_TRNS"                ) ;Use the next lowest non-transparent key
-
+    ((pred (eq mugur-ignore-key       )) "KC_NO"                 ) ;Ignore this key (NOOP)
+    ((pred (eq mugur-transparent-key  )) "KC_TRNS"               ) ;Use the next lowest non-transparent key
+    
     ;; Quantum Keycodes
     (    'reset                          "RESET"                  ) ;Put the keyboard into bootloader mode for flashing
     (    'debug                          "DEBUG"                  ) ;Toggle debug mode
@@ -416,15 +428,12 @@ xy from 0-24, f lowercase or uppercase."
     ((or 'rgb_mode_rgbtest  'rgb_m_t   ) "RGB_MODE_RGBTEST"       ) ;Red, Green, Blue test animation mode
 
     ;; Key Lock
-    (    'lock                           "KC_LOCK"                ) ;Hold down the next key pressed, until the key is pressed again
-    ))
+    (    'lock                           "KC_LOCK"              ))) ;Hold down the next key pressed, until the key is pressed again
 
-
-;; Helper functions for MODs. Useful for multiple features.
-(defun mugur--mod (mod)
-  "Transform the mugur `MOD' to the qmk equivalent.
+(defun mugur--mod (mugur-mod)
+  "Transform the `MUGUR-MOD' to the qmk-modifier equivalent.
 https://docs.qmk.fm/#/mod_tap"
-  (pcase mod
+  (pcase mugur-mod
     ((or 'C "C") "MOD_LCTL")
     ((or 'M "M") "MOD_LALT")
     ((or 'G "G") "MOD_LGUI")
@@ -456,12 +465,12 @@ Return nil otherwise."
           (and mods key
                `(,@mods ,key)))))
 
-(defun mugur--modifier (key)
+(defun mugur--modifier (mugur-key)
   "Hold down modifier and press key.
 Transform C-M-a into LCTL(LALT(KC_A)).  Return
 nil if any of the modifiers or keys are invalid."
-  (aand (symbolp key)
-        (mugur--mods-plus-key key)
+  (aand (symbolp mugur-key)
+        (mugur--mods-plus-key mugur-key)
         (--reduce-r (format "%s(%s)" it acc)
                     it)
         (s-replace "MOD_" "" it)))
@@ -713,12 +722,20 @@ nil if any of the modifiers or keys are invalid."
   ("a"             "KC_A")
   ((a)             "KC_A")
   (("a")           "KC_A")
+  (c               "KC_C")
+  (C               "KC_LCTL")
+  (M               "KC_LALT")
+  (G               "KC_LGUI")
+  (S               "KC_LSFT")
   (5               "KC_5")
   (?\>             "KC_RIGHT_ANGLE_BRACKET")
+  (-x-             "KC_NO")
+  (---             "KC_TRNS")
   (C-a             "LCTL(KC_A)")
   (C-M-a           "LCTL(LALT(KC_A))")
   ((C M a)         "MT(MOD_LCTL | MOD_LALT, KC_A)")
   ((C-u "this" a)  "SEND_STRING(SS_LCTL(SS_TAP(X_U)) \"this\" SS_TAP(X_A))")
+  ("a flip-flop"   "SEND_STRING(\"a flip-flop\")")
   ((df base)       "DF(BASE)")
   ((df "base")     "DF(BASE)")
   ((lm "base" C)   "LM(BASE, MOD_LCTL)")
@@ -730,6 +747,25 @@ nil if any of the modifiers or keys are invalid."
   ((C M aa)        nil)
   ((C-u "this" aa) nil)
   ((lm "base" c)   nil)))
+
+(ert-deftest mugur-valid-keymaps ()
+  (should
+   (equal (mugur--transform-keymap
+           '(("base" a b c)))
+          '((macros nil)
+            (layers (("base" "KC_A" "KC_B" "KC_C"))))))
+  (should
+   (equal (mugur--transform-keymap
+           '(("base" a b c)
+             ("numbers" 1 2 "three")))
+          '((macros (("MACRO_1" "SEND_STRING(\"three\")")))
+            (layers (("base" "KC_A" "KC_B" "KC_C")
+                     ("numbers" "KC_1" "KC_2" "MACRO_1")))))))
+
+(ert-deftest mugur-invalid-keymaps ()
+  (should-error
+   (mugur--transform-keymap
+    '(("base" xx)))))
 
 (defun mugur-test ()
   "Helper function to run all the mugur-tests. "
