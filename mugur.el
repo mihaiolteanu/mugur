@@ -4,7 +4,7 @@
 
 ;; Author: Mihai Olteanu <mihai_olteanu@fastmail.fm>
 ;; Version: 2.0
-;; Package-Requires: ((emacs "26.1") (s "1.12.0") (anaphora "1.0.4"))
+;; Package-Requires: ((emacs "26.1") (s "1.12.0") (anaphora "1.0.4") (dash "2.18.1") (cl-lib "1.0"))
 ;; Keywords: multimedia
 ;; URL: https://github.com/mihaiolteanu/mugur
 
@@ -28,53 +28,54 @@
 ;; README for details and usage.
 
 ;;; Definitions used in this package:
-;; * mugur-key - The most basic entry in the mugur-keymap. It represents the
+;; * mugur-key - The most basic entry in the mugur-keymap.  It represents the
 ;; list of all valid and mugur specific symbols, strings, characters and lists
-;; that can be used by the user in building its mugur-keymap. It is interpreted
-;; by the mugur package and used in the end to generate the qmk-keymap. There
+;; that can be used by the user in building its mugur-keymap.  It is interpreted
+;; by the mugur package and used in the end to generate the qmk-keymap.  There
 ;; need not be a one-to-one correspondence with a mugur-key and a qmk-keycode,
 ;; as it happens in the case of macros, for example (a single mugur-key is used
 ;; to fill multiple places in the keymap.c, for example)
 
 ;; * mugur-modifier - One of the symbols C, M, G or S which stand for Ctrl, Alt,
-;; Win and Shift, respectively and which correspond to the qmk-modifier KC_LCTL, KC_LALT,
-;; KC_LGUI and KC_LSHIFT respectively. A mugur-modifier is a restricted list of mugur-keys.
+;; Win and Shift, respectively and which correspond to the qmk-modifier KC_LCTL,
+;; KC_LALT, KC_LGUI and KC_LSHIFT respectively.  A mugur-modifier is a
+;; restricted list of mugur-keys.
 
 ;; * qmk-modifier - One of the KC_LCTL, KC_LALT, KC_LGUI and KC_LSHIFT
 ;; qmk-keycodes, respectively, which stand for Ctrl, Alt, Win and Shift,
 ;; respectively.
 
-;; * qmk-raw-modifier - similar to qmk-modifier, but without the KC_ part, that
+;; * qmk-raw-modifier - Similar to qmk-modifier, but without the KC_ part, that
 ;; is LCTL, LALT, LGUI and LSHIFT
 
-;; * qmk-keycode
-;; The qmk equivalent code for the mugur-key given by the user. Thus, a symbol
-;; like 'a, given in the mugur-keymap is transformed into the equivalent
-;; qmk-keycode "KC_A". These are the codes that are written to the qmk-matrix
+;; * qmk-keycode - The qmk equivalent code for the mugur-key given by the user.
+;; Thus, a symbol like 'a, given in the mugur-keymap is transformed into the
+;; equivalent qmk-keycode "KC_A".  These are the codes that are written to the
+;; qmk-matrix
 
 ;; * qmk-layer - The totality of all qmk-keycode's, toghether with a layer
 ;; code/name that is part of a qmk-matrix.
 
-;; * qmk-matrix
-;; The matrix found in the qmk_firmware's file keymap.c. It contains all the
-;; qmk-keycode's and all the qmk-layer's, as specified by the qmk documentation. This
-;; is what is actually used to decide which keys does what on your keyboard
+;; * qmk-matrix - The matrix found in the qmk_firmware's file keymap.c.  It
+;; contains all the qmk-keycode's and all the qmk-layer's, as specified by the
+;; qmk documentation.  This is what is actually used to decide which keys does
+;; what on your keyboard
 
-;; * mugur-layer
-;; The totality of all the mugur-key's, together with a string representing the
-;; layer name, that is used to generate the qmk-layer
+;; * mugur-layer - The totality of all the mugur-key's, together with a string
+;; representing the layer name, that is used to generate the qmk-layer.
 
-;; * mugur-keymap
-;; The totally of all the mugur-layer's. This is the mugur equivalent for the
-;; qmk-matrix.
+;; * mugur-keymap - The totally of all the mugur-layer's.  This is the mugur
+;; equivalent for the qmk-matrix.
 
 ;;; Code:
 
 (require 's)
 (require 'anaphora)
+(require 'dash)
+(require 'cl-lib)
 
 (defgroup mugur ()
-  "ErgoDox EZ keyboard configurator"
+  "ErgoDox EZ keyboard configurator."
   :group 'tools
   :prefix "mugur-")
 
@@ -92,7 +93,7 @@
 (defcustom mugur-layout-name nil
   "The keymap name used in the keymaps matrix.
 Check the 'uint16_t keymaps' matrix in the default keymap.c of
-your keyboard. Some have just \"LAYOUT\", others
+your keyboard.  Some have just \"LAYOUT\", others
 \"LAYOUT_ergodox\", etc. Adapt accordingly."
   :type '(string :tag "name")
   :group 'mugur)
@@ -120,12 +121,12 @@ your keyboard. Some have just \"LAYOUT\", others
 
 ;; Configs
 (defcustom mugur-tapping-term 180
-  "Tapping term, in ms"
+  "Tapping term, in ms."
   :type '(integer :tag "ms")
   :group 'mugur)
 
 (defcustom mugur-combo-term 100
-  "Combo term, in ms"
+  "Combo term, in ms."
   :type '(integer :tag "ms")
   :group 'mugur)
 
@@ -136,14 +137,14 @@ your keyboard. Some have just \"LAYOUT\", others
   :group 'mugur)
 
 (defcustom mugur-ignore-key '-x-
-  "The symbol used in the mugur keymap for an ignored key.
-This is transformed into the qmk KC_NO keycode."
+  "The symbol used in the mugur-keymap for an ignored key.
+This is transformed into the qmk-keycode KC_NO."
   :type  '(symbol :tag "symbol")
   :group 'mugur)
 
 (defcustom mugur-transparent-key '---
   "The symbol used in the mugur keymap for a transparent key.
-This is transformed into the qmk KC_TRANSPARENT keycode."
+This is transformed into the qmk-keycode KC_TRANSPARENT."
   :type  '(symbol :tag "symbol")
   :group 'mugur)
 
@@ -165,7 +166,7 @@ no transformation is possible, return nil."
       ;; Strings can always be handled as macros, but we can try and interpret
       ;; strings of a single character as just that character.  So instead of
       ;; SEND_STRING(\":\") we can have KC_COLON as a return value.  For special
-      ;; characters that do not have a qmk keycode, just continue and use a
+      ;; characters that do not have a qmk-keycode, just continue and use a
       ;; macro instead.
       (and (stringp mugur-key)
            (= (length mugur-key) 1)
@@ -177,7 +178,7 @@ no transformation is possible, return nil."
       (aand (symbolp mugur-key)
             (symbol-name mugur-key)
             (and (= (length it) 1)
-                 (mugur--keycode (string-to-char it))))      
+                 (mugur--keycode (string-to-char it))))
       (mugur--oneshot      mugur-key)
       (mugur--layer-toggle mugur-key)
       (mugur--modifier     mugur-key)
@@ -190,18 +191,18 @@ no transformation is possible, return nil."
 
 (defun mugur--letter (mugur-key)
   "If MUGUR-KEY is a letter, return its qmk-keycode, nil otherwise.
-MUGUR-KEY can be a single downcase letter, between 'a' and 'z',
+MUGUR-KEY can be a single down-case letter, between 'a' and 'z',
 and can be specified either as a symbol or as a string (i.e. 'a
 or \"a\" are both transformed to the qmk-keycode KC_A, as a string)."
   (aand (pcase mugur-key
           ((pred symbolp) (symbol-name mugur-key))
-          ((pred stringp) mugur-key))        
+          ((pred stringp) mugur-key))
         (and (let ((case-fold-search nil))
                (string-match "^[a-z]$" it))
              it)
         (format "KC_%s" (upcase it))))
 
-(defun mugur--digit (mugur-key)  
+(defun mugur--digit (mugur-key)
   "If MUGUR-KEY is a digit, return its qmk-keycode, nil otherwise.
 MUGUR-KEY can be a digit between '0' and '9' and can also be
 specified as a string (i.e. 5 or \"5\" are both transformed to
@@ -225,7 +226,7 @@ KC_F6, as a string)."
         (s-match (rx bol
                      (or (seq "f1" digit)
                          (seq "f2" (in "0-4"))
-                         (seq "f"  digit))                    
+                         (seq "f"  digit))
                      eol)
                  it)
         (format "KC_%s" (upcase (car it)))))
@@ -262,7 +263,7 @@ equivalent."
     ((or 'numlock           'nlck      ) "KC_NUMLOCK"             ) ;Keypad Num Lock and Clear
     ((or 'locking_caps      'lcap      ) "KC_LOCKING_CAPS"        ) ;Locking Caps Lock
     ((or 'locking_num       'lnum      ) "KC_LOCKING_NUM"         ) ;Locking Num Lock
-    ((or 'locking_scroll    'lscr      ) "KC_LOCKING_SCROLL"      ) ;Locking Sroll Lock
+    ((or 'locking_scroll    'lscr      ) "KC_LOCKING_SCROLL"      ) ;Locking Scroll Lock
 
     ;; Modifiers
     ((or 'lctl              'C         ) "KC_LCTL"                ) ;Left Control
@@ -296,7 +297,7 @@ equivalent."
 
     ;; Commands
     ((or 'pscreen           'pscr      ) "KC_PSCREEN"             ) ;Print Screen
-    ((or 'pause             'brk       ) "KC_PAUSE"               ) ;Pause, Brightness Up (macOS) 
+    ((or 'pause             'brk       ) "KC_PAUSE"               ) ;Pause, Brightness Up (macOS)
     ((or 'insert            'ins       ) "KC_INSERT"              ) ;Insert
     (    'home                           "KC_HOME"                ) ;Home
     (    'pgup                           "KC_PGUP"                ) ;Page Up
@@ -373,7 +374,7 @@ equivalent."
     ((or 'kp_1              'p1        ) "KP_1"                   ) ;Keypad 1 and End
     ((or 'kp_2              'p2        ) "KP_2"                   ) ;Keypad 2 and Down Arrow
     ((or 'kp_3              'p3        ) "KP_3"                   ) ;Keypad 3 and Page Down
-    ((or 'kp_4              'p4        ) "KP_4"                   ) ;Keypad 4 and Left Arrow 
+    ((or 'kp_4              'p4        ) "KP_4"                   ) ;Keypad 4 and Left Arrow
     ((or 'kp_5              'p5        ) "KP_5"                   ) ;Keypad 5
     ((or 'kp_6              'p6        ) "KP_6"                   ) ;Keypad 6 and Right Arrow
     ((or 'kp_7              'p7        ) "KP_7"                   ) ;Keypad 7 and Home
@@ -381,7 +382,7 @@ equivalent."
     ((or 'kp_9              'p9        ) "KP_9"                   ) ;Keypad 9 and Page Up
     ((or 'kp_0              'p0        ) "KP_0"                   ) ;Keypad 0 and Insert
     ((or 'kp_dot            'pdot      ) "KP_DOT"                 ) ;Keypad . and Delete
-    ((or 'kp_equal          'peql      ) "KP_EQUAL"               ) ;Keypad = 
+    ((or 'kp_equal          'peql      ) "KP_EQUAL"               ) ;Keypad =
     ((or 'kp_comma          'pcmm      ) "KP_COMMA"               ) ;Keypad ,
     (    'kp_equal_as400                 "KP_EQUAL_AS400"         ) ;Keypad = on AS/400 keyboards
 
@@ -462,7 +463,7 @@ equivalent."
 
     ;; RGB Ligthing
     (    'rgb_tog                        "RGB_TOG"                ) ;Toggle RGB lighting on or off
-    ((or 'rgb_mode_forward  'rgb_mod   ) "RGB_MOD"                ) ;Cycle through modes, reverse direction when Shift is held 
+    ((or 'rgb_mode_forward  'rgb_mod   ) "RGB_MOD"                ) ;Cycle through modes, reverse direction when Shift is held
     ((or 'rgb_mode_reverse  'rgb_mod   ) "RGB_RMOD"               ) ;Cycle through modes in reverse, forward direction when Shift is held
     (    'rgb_hui                        "RGB_HUI"                ) ;Increase hue, decrease hue when Shift is held
     (    'rgb_hud                        "RGB_HUD"                ) ;Decrease hue, increase hue when Shift is held
@@ -488,8 +489,8 @@ equivalent."
 MUGUR-KEY can be a symbol containing mugur-modifiers separated by
 dashes and a mugur-key after the last dash.  If all the elements
 are valid, return the qmk-keycode for the modifier key
-functionality, otherwise return nil. For example, C-M-a becomes
-LCTL(LALT(KC_A))"
+functionality, otherwise return nil.  For example, 'C-M-a becomes
+\"LCTL(LALT(KC_A))\"."
   (aand (mugur--qmk-dashed-modifier mugur-key)
         (--reduce-r (format "%s(%s)" it acc) it)))
 
@@ -518,7 +519,7 @@ macro functionality, nil otherwise.  For example, '(C-u a)
 becomes \"SEND_STRING(SS_LCTL(SS_TAP(X_U)) SS_TAP(X_A))\""
   (or
    ;;If this is either a list of more than one element
-   (aand (and (listp mugur-key) 
+   (aand (and (listp mugur-key)
               (> (length mugur-key) 1))
          ;;..where each element can be transformed into a valid qmk SEND_STRING
          ;;equivalent,
@@ -526,7 +527,7 @@ becomes \"SEND_STRING(SS_LCTL(SS_TAP(X_U)) SS_TAP(X_A))\""
               ;; that is,
               (or
                ;; - A simple string which is sent as such.
-               (and (stringp k)       
+               (and (stringp k)
                     (format "\"%s\"" k))
 
                ;; - A mugur-dashed-modifier
@@ -571,12 +572,12 @@ respectively."
     ;; One Shot Modifier
     ((and `(,'osm ,m)
           (guard (mugur--qmk-raw-modifiers (list m))))
-     (format "OSM(%s)" (car (mugur--qmk-raw-modifiers (list m)))))
+     (format "OSM(MOD_%s)" (car (mugur--qmk-raw-modifiers (list m)))))
     ;; One Shot Layer
     (`(,'osl ,x) (format "OSL(%s)" x))))
 
 (defun mugur--layer-toggle (mugur-key)
-  "If MUGUR-KEY is a mugur-key specifing a layer toggle, return its qmk-keycode, nil otherwise.
+  "If MUGUR-KEY is a mugur-key specifying a layer toggle, return its qmk-keycode, nil otherwise.
 MUGUR-KEY can be a list that starts with any of the DF, MO, OSL,
 TG, TT, LL or LT, followed by a mugur-modifier, mugur-layer or
 mugur-key, depending on the case (see the official qmk
@@ -604,22 +605,21 @@ mugur-modifiers, return a list of qmk-raw-modifiers, as strings,
 otherwise return nil."
   (aand (listp mugur-modifiers)
         (mapcar #'mugur--to-string mugur-modifiers)
-        (and (not (set-difference it '("C" "M" "S" "G") :test #'string=))
+        (and (not (-difference it '("C" "M" "S" "G")))
              it)
         (mapcar #'mugur--keycode it)
-        (and (not (some #'null it))
+        (and (not (-some #'null it))
              it)
         (--map (s-replace "KC_" "" it)
                it)))
 
 (defun mugur--qmk-dashed-modifier (mugur-dashed-modifier)
   "Transform the list of MUGUR-DASHED-MODIFIER into a qmk-raw-modifier.
-Similar to `mugur--qmk-raw-modifiers', but the modifiers are given in
-a single overall symbol, separated by dashes, where the item
-after the last dash is a valid `mugur-keycode', for example
-'C-M-a.
-If not all items in the MUGUR-DASHED-MODIFIER can be succesfully
-transformed, return nil"
+Similar to `mugur--qmk-raw-modifiers', but the modifiers are
+given in a single overall symbol, separated by dashes, where the
+item after the last dash is a valid `mugur-keycode', for example
+'C-M-a.  If not all items in the MUGUR-DASHED-MODIFIER can be
+successfully transformed, return nil"
   (aand (symbolp mugur-dashed-modifier)
         (symbol-name mugur-dashed-modifier)
         (and (s-match "-" it)
@@ -632,7 +632,7 @@ transformed, return nil"
           ;; multi-character keys, like "space", into a qmk-macro instead of
           ;; KC_SPACE, intern it.
           ,(mugur--keycode (intern (car (last it)))))
-        (and (not (some #'null it))
+        (and (not (-some #'null it))
              it)))
 
 (defun mugur--to-string (mugur-key)
@@ -645,7 +645,7 @@ equivalent, otherwise return nil."
     ((pred stringp)    mugur-key)
     ((pred symbolp)    (symbol-name mugur-key))
     ((pred characterp) (char-to-string mugur-key))    
-    (`(,v) (mugur--force-string v))))
+    (`(,v) (mugur--to-string v))))
 
 
 ;;;; ---------------------------------------------------------------------------
@@ -761,7 +761,7 @@ qmk-keymaps folder, as required by the qmk rules."
             (format "[%s] = %s(%s)"
                     (upcase (car k))
                     (or mugur-layout-name
-                        (error "mugur-layout-name not set."))
+                        (error "The mugur-layout-name variable is not set"))
                     ;; Add comma between the keys and transform
                     ;; the keys into a big string.
                     (--reduce-r (format "%s, %s" it acc) (cdr k))))
@@ -829,7 +829,7 @@ otherwise."
                          ;; qmk-keycode for the mugur-macro is the newly created
                          ;; macro name and not the SEND_STRING string.
                          ((rx "SEND_STRING" anything)
-                          (let ((macro-name (format "MACRO_%s" (incf macro-count))))
+                          (let ((macro-name (format "MACRO_%s" (cl-incf macro-count))))
                             (push (list macro-name qmk-keycode)
                                   macros-list)
                             macro-name))
@@ -847,12 +847,14 @@ otherwise."
 
 (defun mugur--qmk-keymap-layers (qmk-keymap)
   "Extract the qmk-layers from a QMK-KEYMAP."
-  (aand (find 'layers qmk-keymap :key #'car)
+  (aand (--find (eq (car it) 'layers)
+                qmk-keymap)
         (cadr it)))
 
 (defun mugur--qmk-keymap-macros (qmk-keymap)
   "Extract the qmk-macros from a QMK-KEYMAP."
-  (aand (find 'macros qmk-keymap :key #'car)
+  (aand (--find (eq (car it) 'macros)
+                qmk-keymap)
         (cadr it)))
 
 
@@ -894,7 +896,7 @@ that mugur-key."
   ("a flip-flop"   "SEND_STRING(\"a flip-flop\")")
 
   ((osl mylayer)   "OSL(mylayer)")
-  ((osm C)         "OSM(LCTL)")
+  ((osm C)         "OSM(MOD_LCTL)")
 
   ((df base)       "DF(BASE)")
   ((df "base")     "DF(BASE)")
