@@ -272,6 +272,7 @@ equivalent."
     ((or 'ralt              'ropt      ) "KC_RALT"                ) ;Right Alt (Option/AltGr)
     ((or 'rshift            'rsft      ) "KC_RSHIFT"              ) ;Right Shift
     ((or 'rgui              'rcmd      ) "KC_RGUI"                ) ;Right GUI (Windows/Command/Meta key)
+    ((or 'hyper             'H         ) "KC_HYPR"                ) ;Hyper
 
     ;; International
     ((or 'ro                'int1      ) "INT1"                   ) ;JIS \ and _
