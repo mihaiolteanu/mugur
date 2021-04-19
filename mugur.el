@@ -106,17 +106,12 @@ your keyboard.  Some have just \"LAYOUT\", others
 ;; Rules
 (defcustom mugur-leader-enable "no"
   "Enable the leader key functionality."
-  :type '(boolean :tag "enable")
+  :type '(string :tag "yes/no")
   :group 'mugur)
 
 (defcustom mugur-rgblight-enable "no"
   "Enable the rgblight functionality."
-  :type '(boolean :tag "enable")
-  :group 'mugur)
-
-(defcustom mugur-forcenkro-enable "yes"
-  "Enable the force nkro functionality."
-  :type '(boolean :tag "enable")
+  :type '(string :tag "yes/no")
   :group 'mugur)
 
 ;; Configs
@@ -125,14 +120,11 @@ your keyboard.  Some have just \"LAYOUT\", others
   :type '(integer :tag "ms")
   :group 'mugur)
 
-(defcustom mugur-combo-term 100
-  "Combo term, in ms."
-  :type '(integer :tag "ms")
-  :group 'mugur)
-
 ;; Others
 (defcustom mugur-user-defined-keys nil
-  "User defined keys for long or often used combinations."
+  "User defined keys for long or often used combinations.
+A list of lists, where the car of each antry is a symbol (a name
+for the new key) and the cadr is any valid mugur-key."
   :type  '(alist :tag "keys")
   :group 'mugur)
 
@@ -710,12 +702,12 @@ Use the user supplied custom variables to set up all the rules.
 The output of the file is in the generated qmk-keymaps folder, as
 required by the qmk rules."
   (mugur--write-file "rules.mk"
-   (format "LEADER_ENABLE   = %s
-            RGBLIGHT_ENABLE = %s
-            FORCE_NKRO      = %s"
-           mugur-leader-enable
-           mugur-rgblight-enable
-           mugur-forcenkro-enable)))
+   (format
+    "FORCE_NKRO      = yes
+     LEADER_ENABLE   = %s
+     RGBLIGHT_ENABLE = %s"
+    mugur-leader-enable
+    mugur-rgblight-enable)))
 
 (defun mugur--write-config-h ()
   "Generate the qmk config.h file.
@@ -723,24 +715,12 @@ Use the user supplied custom variables to set up all the rules.
 The output of the file is in the generated qmk-keymaps folder, as
 required by the qmk rules."
   (mugur--write-file "config.h"
-   (s-format
+   (format
     "#undef TAPPING_TERM
-     #define TAPPING_TERM ${tapping-term}
-     //#define LEADER_TIMEOUT {leader-timeout}
-
-     /* Mouse */
-     //#define MOUSEKEY_INTERVAL    {mousekey-interval}
-     //#define MOUSEKEY_DELAY       {mousekey-delay}
-     //#define MOUSEKEY_TIME_TO_MAX {mousekey-time-to-max}
-     //#define MOUSEKEY_MAX_SPEED 7 {mousekey-max-speed}
-     //#define MOUSEKEY_WHEEL_DELAY {mousekey-wheel-delay}
-     
+     #define TAPPING_TERM %s
      #define FORCE_NKRO
-     #undef RGBLIGHT_ANIMATIONS"         'aget
-    `((tapping-term    . ,mugur-tapping-term)
-      (combo-term      . ,mugur-combo-term)
-      (rgblight-enable . ,mugur-rgblight-enable)
-      (force-nkro      . ,mugur-forcenkro-enable)))))
+     #undef RGBLIGHT_ANIMATIONS"
+    mugur-tapping-term)))
 
 (defun mugur--write-keymap-c (mugur-keymap)
   "Generate the qmk keymap.c file from the MUGUR-KEYMAP.
@@ -786,9 +766,8 @@ qmk-keymaps folder, as required by the qmk rules."
       }"
       ;; Layer names
       (--reduce-r
-       (format "%s, \n       %s"
-               (upcase acc) (upcase it))
-       (mapcar #'car qmk-layers))
+       (format "%s, \n       %s" acc it)
+       (reverse (--map (upcase (car it)) qmk-layers)))
 
       ;; Macro names
       (--reduce-r
@@ -947,10 +926,10 @@ that mugur-key."
 
   ;;; Keybound emacs functions.
   ;; Multikeys keybindings (C-x 8 RET)
-  (insert-char       "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")  
-  (query-replace     "LALT(KC_PERCENT)") ;Normal/simple keybindings (M-%)  
-  (kill-word)        "LCTL(KC_BSPACE)"   ;Keybindings with angle brackets (<C-backspace>)
-  ((kill-word))      "LCTL(KC_BSPACE)"   ;Same, but given as a list
+  (insert-char     "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")  
+  (query-replace   "LALT(KC_PERCENT)") ;Normal/simple keybindings (M-%)  
+  (kill-region     "LSFT(KC_DELETE)")  ;Keybindings with angle brackets (<S-delete>)
+  ((kill-region)   "LSFT(KC_DELETE)")  ;Same, but given as a list
   
   ;;; Layers switching and toggle.
   ((OSL mylayer)   "OSL(mylayer)")
@@ -968,9 +947,9 @@ that mugur-key."
   ((C Mm aa)       nil)
   ((C-u "this" aa) nil)
   ((LM "base" c)   nil)
-  ((OSM c)         nil)  
-  ((OSM C M)       nil)               ;One Shot Keys can have only one modifier.
-  ))
+  ((OSM c)         nil)
+  ;; One Shot Keys can have only one modifier.
+  ((OSM C M)       nil)))
 
 (ert-deftest mugur-valid-keymaps ()
   "Test valid mugur-keymaps."
