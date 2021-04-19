@@ -229,7 +229,7 @@ name and the particular problem you're facing.
       (mugur-layout-name     "LAYOUT_ergodox")
       (mugur-keymap-name     "mugur_test")
       (mugur-tapping-term    175)
-      (mugur-user-defined-keys '((email  "mihai@fastmail.fm)
+      (mugur-user-defined-keys '((email  "mihai@fastmail.fm")
                                  (replay (C-x e)))))
                                  
   (mugur-mugur
