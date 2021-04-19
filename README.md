@@ -1,308 +1,221 @@
-# Overview
+# Mugur
 
-Mugur is a high-level [ErgoDox EZ](https://ergodox-ez.com/) Configurator for
-Emacs users. 
+An Emacs configurator for QMK compatible keyboards. 
 
-Mugur offers a consistent interface for all the ErgoDox features.  With the C
-code configurator, for example, if you want to specify an Ergodox macro key, you
-first have to give your key a unique name, then write some C code to implmenet
-this new key, and then finally use it in one of your layers. If you want a
-mod-tap key, the modifier keycode is different than if you'd just wanted to have
-a simple modifier key. With mugur, all these features are defined in a
-consistent way by having all the keys be just simple lists, defined directly in
-your layers. No extra code, no extra functions. Mugur interprets these mugur-keys
-differently, depending on the context, and generates the correct C code to
-implement their semantics.
+# How it works
 
-A mugur-key is just a list of symbols, and can be `(k)` for sending the `k`
-character when tapped, or `(C k)` for sending `k` when tapped but acting like
-Control when held (mod-tap), a string like `("my_email_address@me.com")`, a key
-combination like the often used `(C-u C-space)`, or even an fbound Emacs
-function, like `(other-window)`, among other things (see all features
-[below](#supported-keys-in-the-mugur-keymap-layers)).
-
-This is a simplified example that defines an Ergodox configuration, and contains
-macros, simple keys, mod-tap, layer changes, combos and emacs fbound symbols
-(emacs functions). For a more complex example, see the
-[mugur-keymap](https://github.com/mihaiolteanu/.emacs.d/blob/master/init.el#L487)
-configuration from my init.el file, the configuration that I'm using to flash my
-ErgoDox.
+Given a list of all the layers and keys, `mugur-mugur` generates the equivalent
+C code for the qmk_firmware, ready to be flashed on the keyboard.
 
 ```emacs-lisp
-(mugur-keymap
-  :tapping-term 200
-  :rgblight-animations nil
-
-  :combos '((left right escape)
-            (x y (C-x "pressed both x and y at once")))
-  
-  :with-keys '((mybspace (lt numeric bspace))
-               (emacs-split (C-x 3)))
-  
-  :layers
-  '(("base" vertical
-     ((---)   (vol-down) (vol-up) (---) (---) (---) (reset) 
-      (---)      (q)        (w)     (e)   (r)  (t)   (---) 
-      (---)      (a)       (G t)   (M d) (C f) (g) 
-      (osm S)    (z)        (x)     (c)   (v)  (b)   (---) 
-      (---)     (---)      (---)   (---) (---) 
-                  (other-window) (save-buffers-kill-emacs) 
-                                                     (M-x)
-                       (mybspace) (lt numeric space) (tab))
-
-     (---) (---) (---)  (---)  (---) (---)  (---)
-     (---)  (y)   (u)    (i)    (o)  (---)  (---)
-            (h)  (C j)  (M k)  (G l)  (p)   (---)
-     (---)  (n)   (m)  (comma) (dot) (---) (osm S)
-                 (---)  (---)  (---) (---)  (---)
-     (emacs-split) (---)
-     (C-u C-space)
-     (escape) (enter) (---))
-  
-  ("numeric"
-    (( ) ( ) ( ) ( ) ( ) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) ( ) (1) (2) (3) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) ( ) (4) (5) (6) ( )             ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) (0) (7) (8) (9) ( ) ( )     ( ) ( ) ( ) ( ) ( ) ( ) ( )
-     ( ) ( ) ( ) ( ) ( )                     ( ) ( ) ( ) ( ) ( )
-                         ( ) ( )     ( ) ( )
-                         (1 2 3)     ("one two three")
-                     ( ) ( ) ( )     ( ) ( ) ( )))))
-                     
+(mugur-mugur
+ '(("base"    a b c (LT numbers d))
+   ("numbers" 1 2 3 "one two three")))
 ```
 
-# Install
+This is a two-layers layout for a keyboard with four keys. The "base" layer has
+the letters 'a', 'b' and 'c' and a layer-toggle key that activates the "numbers"
+layer when held and sends the letter 'd' when tapped. On the "numbers" layer
+there are the 1, 2 and 3 digits, as expected, and then a macro key that sends
+"one two three" when pressed.
 
-Git clone it, for now, until this package  will be available from MELPA.
-```bash
-git clone https://github.com/mihaiolteanu/mugur ~/.emacs.d/lisp/mugur
+There are other possibilities, qmk features and configurations to try, but that
+is the basics of it.
+
+# Supported QMK keycodes and features
+
+mugur-key is just a term I've invented for any of the symbols, characters,
+strings or lists that can appear in a mugur-keymap. In the above example, both
+'a' and "one two three" are valid mugur-keys.
+
+## Basic Keycodes
+Mugur supports all the [basic qmk
+keycodes](https://docs.qmk.fm/#/keycodes_basic).  Their mugur-key equivalent is
+either a symbol, a digit, a character or a string.
+
+The mugur-keys are case sensitive. Thus, c and C are different keys, one for the
+letter c, the other for the Ctrl modifier. Below is the list of all modifiers plus
+some additional examples.
+
+| mugur-key | qmk-keycode | comment                             |
+|:----------|:------------|-------------------------------------|
+| C         | KC_LCTL     | the C (or Ctrl) modifier            |
+| M         | KC_LALT     | the M (or Meta) modifier            |
+| G         | KC_LGUI     | the G (or Super) modifier           |
+| S         | KC_LSFT     | the S (or Shift) modifier           |
+| c         | KC_C        | the letter c, given as a symbol     |
+| "x"       | KC_X        | the letter x, given as a string     |
+| ?\+       | KC_PLUS     | the plus sign, given as a character |
+| f12       | KC_F12      | the function key F12                |
+| 9         | KC_9        | the digit 9                         |
+| xx        | nil         | Invalid key, results in error       |
+
+In short, for every mugur-key there is either a direct correspondence with a
+qmk-keycode or with a qmk functionality (like a macro, for example). For a list
+of all these basic codes that one can use in the layout, consult the
+`mugur-symbol` function as defined in mugur.el. For the special keys, like
+macros, one shot and the rest, see below.
+
+## Mod-tap
+When pressed, the modifier is active, when tapped the key is sent.
+
+| mugur-key | example comment                              |
+|:----------|:---------------------------------------------|
+| (C x)     | Ctrl modifier when held, send x when tappend |
+| (S x)     | Hold Shift when held, send x when tapped     |
+| (C M x)   | C+M modifier when held, send x when tapped   |
+| (C M)     | Invalid, two modifiers given                 |
+| (C a b)   | Invalid, more than one key given             |
+|           |                                              |
+
+## Modifiers
+Allows key combinations like the familiar emacs's M-x, that is, hold down the
+Meta modifier and press x.
+
+| mugur-key | example comment                          |
+|:----------|:-----------------------------------------|
+| M-x       | Send x with Meta held down               |
+| C-M-x     | Send x with both Ctrl and Meta held down |
+| C-M-yes   | Invalid keycode, results in error        |
+
+## One Shot Keys
+One shot keys are keys that remain active until the next key is pressed, and
+then are released ([qmk documentation](https://docs.qmk.fm/#/one_shot_keys))
+
+| mugur-key     | example comment                                               |
+|:--------------|:--------------------------------------------------------------|
+| (OSM S)       | One Shot Mod - the next key will be pressed with Shift active |
+| (OSL mylayer) | One Shot Layer - the next key will be from this layer         |
+
+## Layer Toggle
+Switching and toggling layers. 
+
+| mugur-key      | example comment                                                                             |
+|:---------------|:--------------------------------------------------------------------------------------------|
+| (DF numbers)   | switch to 'numbers' layer                                                                   |
+| (MO numbers)   | momentarily activates the 'numbers' layer (as long as the key is kept pressed)              |
+| (LM numbers C) | momentarily activates the 'numbers' layer but with the C modifier active                    |
+| (LT numbers x) | momentarily activates the 'numbers' layer when held and sends x when tapped                 |
+| (OSL numbers)  | momentarily activates the 'numbers' layer until the next key is pressed                     |
+| (TG numbers)   | toggle the numbers layer, activating it if its inactive and vice-versa                      |
+| (TO numbers)   | activates the numbers layer and deactivates all the other layers, besides the default layer |
+| (TT numbers)   | layer tap-toggle                                                                            |
+
+## Macros
+Send any key combination that does not qualify as anything else.
+
+| mugur-key               | example comment                                                                   |
+|:------------------------|:----------------------------------------------------------------------------------|
+| "this is mugur!"        | send the specified string when key is tapped                                      |
+| (C-x d)                 | send x with C modifier pressed and then send d. (the Emacs dired command)         |
+| (C-M-u "my pass" enter) | send u with both C and M modifier pressed, send "my pass" and press enter         |
+| ">"                     | this is *not* a macro since it has a basic qmk-keycode to which it is transformed |
+| "λ"                     | but this one is a macro, and this key will insert the beloved lambda              |
+| (C-x dd)                | invalid, since dd is not a valid mugur-key. Results in error                      |
+
+## Emacs keybound functions
+For Emacs functions that have a keybinding, the function name can be directly specified as a mugur-key.
+
+| mugur-keycode | example comment                                                                     |
+|:--------------|:------------------------------------------------------------------------------------|
+| query-replace | the usual keybinding for this is M-%, so this is equivalent with the M-% mugur-key  |
+| insert-char   | Becomes the mugur-key '(C-x 8 RET), which, in turn, is a macro that send those keys |
+|               |                                                                                     |
+
+## User Defined Keys
+For long or often-used mugur-key sequences, or simply as a mnemonic, the
+`mugur-user-defined-keys` contains a list of items, where the car of the item is
+mnemonic and the cadr is any valid mugur-key.
+
+```emacs-list
+(setf mugur-user-define-keys
+      '((uname        "my_badass_username")
+        (weird_key    (C-c a "right?" ENT))))
 ```
 
-Add mugur to your load-path
+# Configuration
 
-```emacs-lisp
-(add-to-list 'load-path "~/.emacs.d/lisp/mugur")
-```
+## Paths and names
 
-Set the `mugur-qmk-path` to point to the location of your [qmk source
-code](https://github.com/qmk/qmk_firmware).
+**mugur-qmk-path** *nil*
 
-```emacs-lisp
-(setf mugur-qmk-path "/home/mihai/projects/qmk_firmware")
-```
+    Path to the qmk firmware source code (root folder).
 
-You'll also need [wally-cli](https://github.com/zsa/wally) if you want to flash
-directly from Emacs.
+**mugur-keyboard-name** *nil*
 
-# Supported keys in the mugur-keymap layers 
+    The name of your qmk keyboard."
 
-The following are all qmk features that are supported by mugur by directly
-specifying a mugur-key in the `mugur-keymap` definition. A mugur-key is a list
-that contains one or more qmk keycodes, modifiers, special symbols and the
-like. Depending on the context, the same keycode might mean different
-things. Bellow are the definitions of these mugur-keys which highlight the
-supported features of mugur.
+**mugur-layout-name** *nil*
 
-## Simple keys ([qmk](https://beta.docs.qmk.fm/using-qmk/simple-keycodes))
+    The keymap name used in the keymaps matrix.
+    Check the 'uint16_t keymaps' matrix in the default keymap.c of
+    your keyboard.  Some have just "LAYOUT", others
+    "LAYOUT_ergodox", etc. Adapt accordingly.
 
-**(key)**
+**mugur-keymap-name** *nil*
 
-This defines a simple, normal key, like in a classic keyboard. All the normal keys
-are supported, including all the letters, numbers, punctuation marks, commands
-(like enter) and mouse keys. Most of them can be specified as is, like (x),
-(enter) or (^) but some, like the open parenthesis for example, has to be
-specified either as a string, like ("(") or (lparens). The full list of
-supported keycodes can be checked out by calling `mugur-doc-keycodes`. The right
-hand side on that list corresponds to the qmk's [simple
-keycodes](https://beta.docs.qmk.fm/using-qmk/simple-keycodes/keycodes) list, but
-without the KC_ prefix.
+    The name of qmk keymap generated by mugur.
 
-## Mod-Tap ([qmk](https://beta.docs.qmk.fm/using-qmk/advanced-keycodes/mod_tap))
+## Rules (rules.mk)
 
-**(modifier key)**
+**mugur-leader-enable** *"no"*
 
-Send the key when tapped, as above, but act like the modifier key when held
-. The modifiers are C, M, G, and S for Control, Alt, Win and Shift. Combinations like C-M,
-C-M-S or C-M-G are also possible. Consult the `mugur-doc-keycodes` list for the
-supported modifiers.
+    Enable the leader key functionality.
+    
+**mugur-rgblight-enable** *"no"*
 
-The modifier key has to be in uppercase and has to be the first in the list,
-otherwise `(c a)` means a totally different thing.
+    Enable the rgblight functionality.
+       
+## Configs (config.h)
+    
+**mugur-tapping-term** 180
 
-## Modifier Keys ([qmk](https://beta.docs.qmk.fm/using-qmk/simple-keycodes/feature_advanced_keycodes))
+    Tapping term, in ms."
 
-**(modifier-key)**
+## Others
 
-Hold down the modifier and press key at the same time. For example, `(C-a)` will
-send `C-a` when tapped. That is, send the `a` keycode with C (Control) pressed.
+**mugur-user-defined-keys** nil
 
-## Layers ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/feature_layers))
+    User defined keys for long or often used combinations.
+    A list of lists, where the car of each antry is a symbol (a name
+    for the new key) and the cadr is any valid mugur-key.
 
-**(tg layer)**\
-**(lt layer mod-or-key)**
+**mugur-ignore-key** *'-x-*
 
-Send key when tapped, momentarily switch to layer when held, for example. There
-are a lot of variants for these layer-switching keys. Check out the
-`mugur-doc-layer-switching` or the official qmk documentation linked above for
-the complete list
+    The symbol used in the mugur-keymap for an ignored key.
+    This is transformed into the qmk-keycode KC_NO.
+    
+**mugur-transparent-key** *'---*
 
-Unlike the previous examples where the key definition is context aware, in this
-key, the first element of the key must be one of **lt**, **to**, etc. to unambiguously
-define what kind of layer switching you want. 
+    The symbol used in the mugur keymap for a transparent key.
+    This is transformed into the qmk-keycode KC_TRANSPARENT.
 
-For example, `(lt symbols a)` will send `a` when tapped and momentarily switch to the
-`symbols` layer when held. The `symbols` layers must be available in the
-`mugur-keymap` list of layers.
+# Supported Keyboards
 
-## One Shot Layer ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/one_shot_keys))
+Any keyboard that uses the QMK firmware. Users have reported success using mugur
+for the following keyboards,
 
-**(osl layer)**
+| QMK Keyboard | Comments |
+|:-------------|:---------|
+| Ergodox (EZ) |          |
 
-Momentarily activates layer until a key is pressed, after which, if goes back to
-the original layer.
+Send me an email if you've used mugur for other keyboards successfully. If
+you have problems with a particular keyboard, open an issue with the keyboard
+name and the particular problem you're facing.
 
-## One Shot Modifier ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/one_shot_keys))
+# Other points
 
-**(osm modifier)**
-
-Similar to the one shot layer, momentarily activates the modifier key until a key is
-pressed, after which, it deactivates it. Useful for Shift modifiers, for example, to
-insert uppercase letters.
-
-## Tapdance ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/feature_tap_dance))
-
-**(key1 key2)**\
-**(key layer)**
-
-The tapdance feature is vast and featureful. Mugur only supports one simple case
-where you can send two different characters with a single key, for example.
-
-That is, `(a b)` will send `a` when tapped once and `b` when tapped twice in quick
-succession. An alternative is to specify a layer as the second key, `(a
-symbols)`, which will switch to the `symbols` layer when tapped twice.
-
-## Macros ([qmk](https://beta.docs.qmk.fm/using-qmk/advanced-keycodes/feature_macros))
-
-**(any number of keys, modifiers or strings)**
-
-If your key definition doesn't mach any definition from above, mugur will infer
-that your key is more than likely a macro. With a macro, you can send your email
-address when you press a key, or send any other key combination.
-
-For example, `(C-e "this is awesome." enter)` would define a key that, when
-tapped, will call C-e, then send "this is awesome" followed by Enter.
-
-These two are equivalent macros: `(a b c)`, `("a b c")`.
-
-## User-defined mugur-key names
-
-**(mykey)**
-
-All the above key definitions can be given a name. This is useful when they
-become quite large and are hard to see or destroy the visual look of the layer
-(long macros, for example).  `mugur-keymap` supports the `:with-keys` argument
-for these cases. For example these are two keys that can be used as (myspace)
-and (em-split) in the `mugur-keymap` layers,
-
-```emacs-lisp
-:with-keys '((mybspace (lt xwindow bspace))
-             (em-split (C-x 3)))
-
-```
-The first element of each list is the new key name and the second element is
-anything that could have been specified directly in the `mugur-keymap`
-layers. In short, this is just a list of shortcuts.
-
-## Combos ([qmk](https://beta.docs.qmk.fm/using-qmk/software-features/feature_combo))
-
-**(key1 key2 action-or-key)**
-
-Combos are not keys you can use in the `mugur-keymap` layers, but specify what
-happens when you press two keys at the same time.
-
-`mugur-keymap` supports a keyboard argument named `:combos` for these cases,
-
-```emacs-lisp
-:combos '((left right escape)
-          (x y (C-x "now")))
-```
-In the above case, pressing `left` and `right` and the same time will send the
-`escape` key and pressing `x` and `y` will send C-x followed by "now".
-
-## Emacs functions
-
-**(fbound-emacs-symbol)**
-
-Specify an fbound symbol (a function name) directly in the key definition. Mugur
-keeps an internal list of exotic and unbound key sequences (kbd's) which it can
-bind to the functions specified in the layers definition.
-
-That is, you specify (sp-next-sexp) as a key definition, for example, mugur
-finds an available key sequence, say C-F5, and puts that in your keymap. When
-you flash your keyboard, mugur generates an .el file that contains bind-key
-forms for all such keys. When flashing, mugur loads this file for you, but when
-you start or restart Emacs you'll have to manually load this file by calling
-`mugur-load-keybindings` in your init.el file or interactively.
-
-# Layer general config options
-
-These two options can be specified anywhere after the layer name in the
-`mugur-kemap` entry. These do not affect the mugur-key definitions.
-
-## Turn on LEDs on layer switching
-
-When defining the `mugur-keymap`, you can add a list of three elements after a
-layer name but before the key definitions list. A list like `(1 0 0)` will turn
-on the first led on your keyboard when that layer is active. You can turn on any
-LED, all the LEDs or none. This feature is only supported for Ergodox Ez
-keyboards for now. PRs accepted for other keyboards.
-
-## Keymap orientation
-
-Since the base layer usually has lots and lots of keys, it might be better to
-split the keyboard halves vertically for a better view. For layers where most
-of the keys are transparent keys, the layout can be more compact and a
-horizontal split might be more convenient. The default is horizontal, but you
-can change this behavior by simply adding a `vertical` (or confirm it by adding
-`horizontal`) between the layer name and the actual layer keys.
-
-# Configuration options
-
-Besides the actual layers, you can specify a list of additional config options
-for each `mugur-keymap`. These are all implemented as keyword arguments, and
-include `tapping-term`, `combo-term`, `rgblight-enable`, `rgblight-animations`
-and `force-nkro`. The meaning and functionality of these arguments should be
-checked in the [qmk
-documentation](https://beta.docs.qmk.fm/developing-qmk/qmk-reference/config_options#behaviors-that-can-be-configured). More
-such config options can be added in the future, as the need arises. Open an
-issue if you need something from the qmk extensive list of options.
-
-# Generate, build and flash the qmk keyboards
-
-All the following functionalities lets you select one of your keymaps, as
-defined with `mugur-keymap`. If you only have one keymap defined, that keymap is
-used by default.
-
-## Generate keymap
-
-`mugur-generate`: Generate the C files in the qmk_path/keymap-name folder. These
-are the same files that you would write by hand but are now generated by mugur
-based on the keymap specified with `mugur-keymap`.
-
-## Make keymap
-
-`mugur-make`: Call `make` on the generated qmk layout. A new `compile-mode`
-buffer is opened with the compile results.
-
-## Build keymap
-
-`mugur-build`: Generate and make the keymap. This is equivalent to
-calling `mugur-generate` and `mugur-make` one after another.
-
-## Flash keymap
-
-`mugur-flash`: Flash the keymap (actually the generated hex file). Currently
-only supported for Ergodox Ez keyboards. For other boards the flashing process
-might be different. Consider opening an issue or a PR if you own other keyboards
-and you want this feature supported for them as well.
+* Not all qmk features are supported, nor there is a plan to support them all.
+* The layout that mugur accepts is the layout that qmk keymap.c is using for
+  your particular keyboard (check the qmk_firmware sourcecode). There is a
+  one-to-one correspondence to what is defined in a mugur-layout and what you
+  see in the qmk-layout. In short, no vertical or horizontal reordering of the
+  keys is supported nor planned to.
+* There is no support to define which LEDs to turn on/off for which mugur-layer,
+  nor there is a plan to support such a feature.
+* The mugur package generates the qmk-layout, but does not build nor flashes it
+  on your keyboard. The layout name and location is based on the values of the
+  custom variables given by the user (see the [configuration](#Configuration)
+  section). Consult the qmk documentation and your keyboard README for how to
+  build and flash your keyboard.
 
