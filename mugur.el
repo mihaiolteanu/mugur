@@ -172,6 +172,11 @@ no transformation is possible, return nil."
            (= (length mugur-key) 1)
            (or (mugur--keycode (string-to-char mugur-key))
                (mugur--keycode (intern mugur-key))))
+
+      ;; Strings of type "C-x" can be handled as modifiers instead of macros.
+      (and (stringp mugur-key)
+           (mugur--keycode (intern mugur-key)))
+      
       ;; Some mugur-keys, like the symbol >, do not have a qmk-keycode, but they
       ;; can be transformed into their character equivalent (that is, ?\>),
       ;; which does have a qmk-keycode.  Useful for combinations like M->.
@@ -185,6 +190,7 @@ no transformation is possible, return nil."
       (mugur--modtap       mugur-key)
       (mugur--macro        mugur-key)
       (mugur--user-defined mugur-key)
+      (mugur--emacs-fn     mugur-key)
       (and (listp mugur-key)            ;Destructure '(k) and search for 'k
            (= (length mugur-key) 1)
            (mugur--keycode (car mugur-key)))))
@@ -239,9 +245,9 @@ other special keys that all have a direct qmk-keycode
 equivalent."
   (pcase mugur-key
     ;; Punctuation
-    ((or 'enter             'ent       ) "KC_ENTER"               ) ;Return (Enter)
+    ((or 'RET               'ent       ) "KC_ENTER"               ) ;Return (Enter)
     ((or 'escape            'esc       ) "KC_ESCAPE"              ) ;Escape
-    (    'bspace                         "KC_BSPACE"              ) ;Delete (Backspace)
+    ((or 'backspace         'bspace    ) "KC_BSPACE"              ) ;Delete (Backspace)
     ((or 'tab               'tab       ) "KC_TAB"                 ) ;Tab
     ((or 'space             'spc       ) "KC_SPACE"               ) ;Spacebar
     ((or 'minus             ?\-)         "KC_MINUS"               ) ;- and _
@@ -485,12 +491,14 @@ equivalent."
     (    'lock                           "KC_LOCK"              ))) ;Hold down the next key pressed, until the key is pressed again
 
 (defun mugur--modifier (mugur-key)
-  "If MUGUR-KEY contains mugur-modifiers + mugur-key, return its qmk-keycode.
-MUGUR-KEY can be a symbol containing mugur-modifiers separated by
+  "Handle a modifier MUGUR-KEY.
+MUGUR-KEY is a symbol containing mugur-modifiers separated by
 dashes and a mugur-key after the last dash.  If all the elements
 are valid, return the qmk-keycode for the modifier key
-functionality, otherwise return nil.  For example, 'C-M-a becomes
-\"LCTL(LALT(KC_A))\"."
+functionality, otherwise return nil.
+
+For example, 'C-M-a means hold down Ctrl, Meta and send 'a', and
+is transformed into the qmk-key \"LCTL(LALT(KC_A))\"."
   (aand (mugur--qmk-dashed-modifier mugur-key)
         (--reduce-r (format "%s(%s)" it acc) it)))
 
@@ -525,11 +533,7 @@ becomes \"SEND_STRING(SS_LCTL(SS_TAP(X_U)) SS_TAP(X_A))\""
          ;;equivalent,
          (mapcar (lambda (k)
               ;; that is,
-              (or
-               ;; - A simple string which is sent as such.
-               (and (stringp k)
-                    (format "\"%s\"" k))
-
+              (or               
                ;; - A mugur-dashed-modifier
                ;; For example, C-M-a becomes SS_LCTL(SS_LALT(SS_TAP(X_A)))
                (aand (mugur--qmk-dashed-modifier k)
@@ -543,56 +547,96 @@ becomes \"SEND_STRING(SS_LCTL(SS_TAP(X_U)) SS_TAP(X_A))\""
                      ;; element (the qmk-keycode) is the innermost element
                      (--reduce-r (format "%s(%s)" it acc) it))
 
-               ;; - Or a simple key which becomes SS_TAP(X_KEY)
+               ;; - A valid mugur-keycode that is not a macro (a simple string).
+               ;; "enter", which becomes KC_ENTER is valid, but "my enter",
+               ;; which becomes SEND_STRING("my enter") is not.  This is because
+               ;; keycodes need to be wrapped around SS_TAPs, but strings as
+               ;; such are wrapped around quotes.
                (aand (mugur--keycode k)
+                     (and (not (s-match "SEND_STRING" it))
+                          it)
                      (format "SS_TAP(%s)"
-                             (s-replace "KC_" "X_" it)))))
+                             (s-replace "KC_" "X_" it)))
+               
+               ;; - Or a simple string which is wrapped in quotes and sent as
+               ;; such (the "my enter" from above, for example).
+               (and (stringp k)
+                    (format "\"%s\"" k))))
             mugur-key)
          ;; Then, if all the elements have had a SEND_STRING equivalent, return
          ;; the SEND_STRING macro.
          (and (not (member nil it))
               (format "SEND_STRING(%s)"
                       (mapconcat #'identity it " "))))
+   
    ;;...or a simple string
    (and (stringp mugur-key)
         (format "SEND_STRING(\"%s\")" mugur-key))))
 
 (defun mugur--user-defined (mugur-key)
-  "If MUGUR-KEY is a user-defined mugur-key, return its qmk-keycode, nil otherwise.
-MUGUR-KEY is any of the mugur-keys defined in `mugur-user-defined-keys'."
+  "Handle the user-defined MUGUR-KEYs.
+If MUGUR-KEY is any of the mugur-keys defined in
+`mugur-user-defined-keys', return its qmk-keycode, otherwise
+return nil."
   (aand (alist-get mugur-key mugur-user-defined-keys)
         (mugur--keycode it)))
 
+(defun mugur--emacs-fn (mugur-key)
+  "Handle MUGUR-KEYs which are keybound EMACS functions.
+If MUGUR-KEY is an EMACS function which has a keybinding, handle
+that keybinding string as a normal mugur-key and transform it
+into a qmk-keycode, otherwise return nil."
+  (aand
+   ;; Get the function keybinding, if any.
+   (where-is-internal mugur-key nil t)
+   (key-description it)
+   (or
+    ;; Some keybindings are given with angle brackets, <C-tab> for example.
+    (aand (s-match (rx bol "<" (1+ anything) ">" eol)
+                   it)
+          (car it)
+          ;; Remove the angle brackets and treat the resulting string like a
+          ;; mugur-key.
+          (s-replace-regexp "^<" "" it)           
+          (s-replace-regexp ">$" "" it)
+          (mugur--keycode it))
+    ;; Other keybindings have more than one key, "C-x * RET" for example.
+    (aand (s-split " " it)
+          ;; s-split always return the string, even if no matches were found.
+          ;; If there were spaces, and a split was done, the resulting list of
+          ;; strings can be treated as a mugur-key.  If there were no spaces,
+          ;; and no split was done, that can also be treated as a mugur-key.
+          (mugur--keycode it)))))
+
 (defun mugur--oneshot (mugur-key)
-  "If MUGUR-KEY is a mugur-oneshot-key, return its qmk-keycode, nil otherwise.
-MUGUR-KEY can be a list that starts either with OSM or with OSL
-and is followed by a mugur-modifier or by a mugur-key,
-respectively."
+  "Handle the oneshot MUGUR-KEYs.
+MUGUR-KEY is a list that starts either with OSM or with OSL and
+is followed by a mugur-modifier or by a mugur-key, respectively."
   (pcase mugur-key
     ;; One Shot Modifier
-    ((and `(,'osm ,m)
+    ((and `(,'OSM ,m)
           (guard (mugur--qmk-raw-modifiers (list m))))
      (format "OSM(MOD_%s)" (car (mugur--qmk-raw-modifiers (list m)))))
     ;; One Shot Layer
-    (`(,'osl ,x) (format "OSL(%s)" x))))
+    (`(,'OSL ,x) (format "OSL(%s)" x))))
 
 (defun mugur--layer-toggle (mugur-key)
-  "If MUGUR-KEY is a mugur-key specifying a layer toggle, return its qmk-keycode, nil otherwise.
+  "Handle the layer toggle MUGUR-KEYs.
 MUGUR-KEY can be a list that starts with any of the DF, MO, OSL,
 TG, TT, LL or LT, followed by a mugur-modifier, mugur-layer or
 mugur-key, depending on the case (see the official qmk
-documentation for details).  Of all the items are valid, return
+documentation for details).  If all the items are valid, return
 the qmk-keycode, nil otherwise.  For example '(lt \"mylayer\" x)
 becomes \"LT(MYLAYER, KC_X)\"."
   (aand (pcase mugur-key
-          (`(,(or 'df 'mo 'osl 'tg 'tt) ,layer)     
+          (`(,(or 'DF 'MO 'OSL 'TG 'TT) ,layer)
            (format "%s(%s)" (car mugur-key) layer))
-          (`(lm ,layer ,mod)
+          (`(LM ,layer ,mod)
            (aand (mugur--qmk-raw-modifiers (list mod))
                  (format "LM(%s, %s)"
                          layer
                          (format "MOD_%s" (car it)))))
-          (`(lt ,layer ,kc)
+          (`(LT ,layer ,kc)
            (aand (mugur--keycode kc)
                  (format "LT(%s, %s)" layer it))))
         (upcase it)))
@@ -874,34 +918,48 @@ that mugur-key."
           tests)))
 
 (mugur--test mugur-valid-keycodes string=
- ((a               "KC_A")
-  ("a"             "KC_A")
-  ((a)             "KC_A")
-  (("a")           "KC_A")
+ ((a               "KC_A")              ;Send A
+  ("a"             "KC_A")              ;Send A
+  ((a)             "KC_A")              ;Send A
+  (("a")           "KC_A")              ;Send A
   (c               "KC_C")
-  (C               "KC_LCTL")
-  ("C"             "KC_LCTL")
   ("c"             "KC_C")
-  (M               "KC_LALT")
-  (G               "KC_LGUI")
-  (S               "KC_LSFT")
+  ("C"             "KC_LCTL")
+  (C               "KC_LCTL")           ;Ctrl Modifier
+  (M               "KC_LALT")           ;Meta Modifier 
+  (G               "KC_LGUI")           ;Gui/Win/Super Modifier
+  (S               "KC_LSFT")           ;Shift Modifier
   (5               "KC_5")
   (?\>             "KC_RIGHT_ANGLE_BRACKET")
   (-x-             "KC_NO")
   (---             "KC_TRNS")
-  (C-a             "LCTL(KC_A)")
-  (C-M-a           "LCTL(LALT(KC_A))")
+  (C-a             "LCTL(KC_A)")        ;Hold Ctrl and send A
+  ((C-a)           "LCTL(KC_A)")        ;Equivalent
+  ("C-a"           "LCTL(KC_A)")        ;Equivalent
+  (("C-a")         "LCTL(KC_A)")        ;Equivalent
+  (C-M-a           "LCTL(LALT(KC_A))")  ;Hold Ctrl and Meta and sent A
   ((C M a)         "MT(MOD_LCTL | MOD_LALT, KC_A)")
   ((C-u "this" a)  "SEND_STRING(SS_LCTL(SS_TAP(X_U)) \"this\" SS_TAP(X_A))")
   ("a flip-flop"   "SEND_STRING(\"a flip-flop\")")
+  ;; Strings of valid keycodes should result in those keycodes.
+  (("C-x" "8" "RET") "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
+  (("C-x"  8   RET)  "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
 
-  ((osl mylayer)   "OSL(mylayer)")
-  ((osm C)         "OSM(MOD_LCTL)")
+  ;;; Keybound emacs functions.
+  ;; Multikeys keybindings (C-x 8 RET)
+  (insert-char       "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")  
+  (query-replace     "LALT(KC_PERCENT)") ;Normal/simple keybindings (M-%)  
+  (kill-word)        "LCTL(KC_BSPACE)"   ;Keybindings with angle brackets (<C-backspace>)
+  ((kill-word))      "LCTL(KC_BSPACE)"   ;Same, but given as a list
+  
+  ;;; Layers switching and toggle.
+  ((OSL mylayer)   "OSL(mylayer)")
+  ((OSM C)         "OSM(MOD_LCTL)")
 
-  ((df base)       "DF(BASE)")
-  ((df "base")     "DF(BASE)")
-  ((lm "base" C)   "LM(BASE, MOD_LCTL)")
-  ((lt "base" x)   "LT(BASE, KC_X)")))
+  ((DF base)       "DF(BASE)")
+  ((DF "base")     "DF(BASE)")
+  ((LM "base" C)   "LM(BASE, MOD_LCTL)")
+  ((LT "base" x)   "LT(BASE, KC_X)")))
 
 (mugur--test mugur-invalid-keycodes eq
  ((aa              nil)
@@ -909,9 +967,9 @@ that mugur-key."
   ((C M aa)        nil)
   ((C Mm aa)       nil)
   ((C-u "this" aa) nil)
-  ((lm "base" c)   nil)
-  ((osm c)         nil)  
-  ((osm C M)       nil)               ;One Shot Keys can have only one modifier.
+  ((LM "base" c)   nil)
+  ((OSM c)         nil)  
+  ((OSM C M)       nil)               ;One Shot Keys can have only one modifier.
   ))
 
 (ert-deftest mugur-valid-keymaps ()
