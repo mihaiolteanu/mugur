@@ -364,25 +364,25 @@ equivalent."
     ((or 'brigthness-down   'brid      ) "KC_BRIGTHNESS_DOWN"     ) ;Brightness Down
 
     ;; Number Pad
-    ((or 'kp_slash          'psls      ) "KP_SLASH"               ) ;Keypad /
-    ((or 'kp_asterisk       'past      ) "KP_ASTERISK"            ) ;Keypad *
-    ((or 'kp_minus          'pmns      ) "KP_MINUS"               ) ;Keypad -
-    ((or 'kp_plus           'ppls      ) "KP_PLUS"                ) ;Keypad +
-    ((or 'kp_enter          'pent      ) "KP_ENTER"               ) ;Enter
-    ((or 'kp_1              'p1        ) "KP_1"                   ) ;Keypad 1 and End
-    ((or 'kp_2              'p2        ) "KP_2"                   ) ;Keypad 2 and Down Arrow
-    ((or 'kp_3              'p3        ) "KP_3"                   ) ;Keypad 3 and Page Down
-    ((or 'kp_4              'p4        ) "KP_4"                   ) ;Keypad 4 and Left Arrow
-    ((or 'kp_5              'p5        ) "KP_5"                   ) ;Keypad 5
-    ((or 'kp_6              'p6        ) "KP_6"                   ) ;Keypad 6 and Right Arrow
-    ((or 'kp_7              'p7        ) "KP_7"                   ) ;Keypad 7 and Home
-    ((or 'kp_8              'p8        ) "KP_8"                   ) ;Keypad 8 and Up Arrow
-    ((or 'kp_9              'p9        ) "KP_9"                   ) ;Keypad 9 and Page Up
-    ((or 'kp_0              'p0        ) "KP_0"                   ) ;Keypad 0 and Insert
-    ((or 'kp_dot            'pdot      ) "KP_DOT"                 ) ;Keypad . and Delete
-    ((or 'kp_equal          'peql      ) "KP_EQUAL"               ) ;Keypad =
-    ((or 'kp_comma          'pcmm      ) "KP_COMMA"               ) ;Keypad ,
-    (    'kp_equal_as400                 "KP_EQUAL_AS400"         ) ;Keypad = on AS/400 keyboards
+    ((or 'kp_slash          'psls      ) "KC_KP_SLASH"            ) ;Keypad /
+    ((or 'kp_asterisk       'past      ) "KC_KP_ASTERISK"         ) ;Keypad *
+    ((or 'kp_minus          'pmns      ) "KC_KP_MINUS"            ) ;Keypad -
+    ((or 'kp_plus           'ppls      ) "KC_KP_PLUS"             ) ;Keypad +
+    ((or 'kp_enter          'pent      ) "KC_KP_ENTER"            ) ;Enter
+    ((or 'kp_1              'p1        ) "KC_KP_1"                ) ;Keypad 1 and End
+    ((or 'kp_2              'p2        ) "KC_KP_2"                ) ;Keypad 2 and Down Arrow
+    ((or 'kp_3              'p3        ) "KC_KP_3"                ) ;Keypad 3 and Page Down
+    ((or 'kp_4              'p4        ) "KC_KP_4"                ) ;Keypad 4 and Left Arrow
+    ((or 'kp_5              'p5        ) "KC_KP_5"                ) ;Keypad 5
+    ((or 'kp_6              'p6        ) "KC_KP_6"                ) ;Keypad 6 and Right Arrow
+    ((or 'kp_7              'p7        ) "KC_KP_7"                ) ;Keypad 7 and Home
+    ((or 'kp_8              'p8        ) "KC_KP_8"                ) ;Keypad 8 and Up Arrow
+    ((or 'kp_9              'p9        ) "KC_KP_9"                ) ;Keypad 9 and Page Up
+    ((or 'kp_0              'p0        ) "KC_KP_0"                ) ;Keypad 0 and Insert
+    ((or 'kp_dot            'pdot      ) "KC_KP_DOT"              ) ;Keypad . and Delete
+    ((or 'kp_equal          'peql      ) "KC_KP_EQUAL"            ) ;Keypad =
+    ((or 'kp_comma          'pcmm      ) "KC_KP_COMMA"            ) ;Keypad ,
+    (    'kp_equal_as400                 "KC_KP_EQUAL_AS400"      ) ;Keypad = on AS/400 keyboards
 
     ;; Special Keys
     ((pred (eq mugur-ignore-key       )) "KC_NO"                 ) ;Ignore this key (NOOP)
