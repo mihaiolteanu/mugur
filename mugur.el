@@ -805,15 +805,17 @@ Use the `mugur-qmk-path' and `mugur-keymap-name' to figure out
 where to write the FILE.  Create all the paths and the FILE if
 they don't already exist."
   (with-temp-file
-      (aand (concat (file-name-as-directory mugur-qmk-path)
-                    (file-name-as-directory "keyboards")
-                    (file-name-as-directory mugur-keyboard-name)
-                    (file-name-as-directory "keymaps")
-                    (file-name-as-directory mugur-keymap-name))
-            (and (or (file-directory-p it)
-                     (make-directory it))
-                 it)
-            (concat it file))
+      (let ((fparents                     ;Create the FILE's parents path
+             (concat (file-name-as-directory mugur-qmk-path)
+                     (file-name-as-directory "keyboards")
+                     (file-name-as-directory mugur-keyboard-name)
+                     (file-name-as-directory "keymaps")
+                     (file-name-as-directory mugur-keymap-name))))
+        (unless (file-directory-p fparents)
+          ;; Only create the `mugur-keymap-name' if it doesn't already exist, the
+          ;; rest of the parents should exist in a valid qmk_firmare source code.
+          (make-directory fparents))
+        (concat fparents file))
     (insert contents)))
 
 (defun mugur--transform-keymap (mugur-keymap)
