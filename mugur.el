@@ -272,6 +272,7 @@ equivalent."
     ((or 'ralt              'ropt      ) "KC_RALT"                ) ;Right Alt (Option/AltGr)
     ((or 'rshift            'rsft      ) "KC_RSHIFT"              ) ;Right Shift
     ((or 'rgui              'rcmd      ) "KC_RGUI"                ) ;Right GUI (Windows/Command/Meta key)
+    ((or 'hyper             'H         ) "KC_HYPR"                ) ;Hyper
 
     ;; International
     ((or 'ro                'int1      ) "INT1"                   ) ;JIS \ and _
@@ -770,10 +771,12 @@ qmk-keymaps folder, as required by the qmk rules."
        (reverse (--map (upcase (car it)) qmk-layers)))
 
       ;; Macro names
-      (--reduce-r
-        ;; macro1, macro2, etc..
-       (format "%s, \n       %s" acc it)
-       (mapcar #'car qmk-macros))
+      (if qmk-macros
+          (--reduce-r
+           ;; macro1, macro2, etc..
+           (format "%s, \n       %s" acc it)
+           (mapcar #'car qmk-macros))
+        "")
 
       ;; All the qmk-layers
       (--reduce-r
@@ -791,13 +794,15 @@ qmk-keymaps folder, as required by the qmk rules."
           qmk-layers))
 
       ;; Macros
-      (--reduce-r
-       (format "%s\n         %s" it acc)
-       (--map
-        ;; case macro_name: SEND_STRING(...); return false;
-        (format "case %s:\n %s;\n return false;"
-                (car it) (cadr it))
-        qmk-macros))))))
+      (if qmk-macros
+          (--reduce-r
+           (format "%s\n         %s" it acc)
+           (--map
+            ;; case macro_name: SEND_STRING(...); return false;
+            (format "case %s:\n %s;\n return false;"
+                    (car it) (cadr it))
+            qmk-macros))
+        "")))))
 
 (defun mugur--write-file (file contents)
   "Write CONTENTS to FILE in the correct qmk_firmware location.
