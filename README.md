@@ -115,6 +115,22 @@ Send any key combination that does not qualify as anything else.
 | "λ"                     | but this one is a macro, and this key will insert the beloved lambda              |
 | (C-x dd)                | invalid, since dd is not a valid mugur-key. Results in error                      |
 
+## Tap Dance
+Hit a key once, send a key. Hit it twice in quick succession, send a different
+one. The tap dance functionality is only valid for two basic mugur-keycodes
+(letter, digits, punctuation, commands, etc), and not for layers nor
+macros. `mugur-tapdance-enable` must be set to "yes" for this to work, otherwise
+look out for `error: implicit declaration of function ‘ACTION_TAP_DANCE_DOUBLE’`
+when building.
+
+| mugur-key        | example comment                                                                   |
+|:-----------------|:----------------------------------------------------------------------------------|
+| (DANCE a x)      | Send `a` when hitting the key once, send `x` when hit twice, in quick succession. |
+| (DANCE ?\: ?\;)  | Send `;` when hitting the key once, send `;` when hit twice, in quick succession  |
+| (DANCE a "this") | Invalid, mugur only supports basic mugur-keycodes, not macros, nor layers, etc.   |
+| (DANCE a b c)    | Invalid, can't do more than two things.                                           |
+
+
 ## Emacs keybound functions
 For Emacs functions that have a keybinding, the function name can be directly specified as a mugur-key.
 
@@ -167,6 +183,10 @@ the mnemonic and the cadr is any valid mugur-key.
 **mugur-rgblight-enable** *"no"*
 
     Enable the rgblight functionality.
+       
+**mugur-tapdance-enable** *"no"*
+
+    Enable the tapdance functionality.
        
 ## Configs (config.h)
     

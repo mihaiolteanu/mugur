@@ -114,6 +114,11 @@ your keyboard.  Some have just \"LAYOUT\", others
   :type '(string :tag "yes/no")
   :group 'mugur)
 
+(defcustom mugur-tapdance-enable "no"
+  "Enable the tapdance functionality."
+  :type '(string :tag "yes/no")
+  :group 'mugur)
+
 ;; Configs
 (defcustom mugur-tapping-term 180
   "Tapping term, in ms."
@@ -180,6 +185,7 @@ no transformation is possible, return nil."
       (mugur--layer-toggle mugur-key)
       (mugur--modifier     mugur-key)
       (mugur--modtap       mugur-key)
+      (mugur--tapdance     mugur-key)
       (mugur--macro        mugur-key)
       (mugur--user-defined mugur-key)
       (mugur--emacs-fn     mugur-key)
@@ -511,6 +517,20 @@ For example, '(C M a) becomes \"MT(MOD_LCTL | MOD_LALT, KC_A)\""
         (and (not (s-match "nil" it))
              it)))
 
+(defun mugur--tapdance (mugur-key)
+  (aand (listp mugur-key)
+        (pcase mugur-key
+          (`(DANCE ,k1 ,k2) (list k1 k2)))
+        (mapcar (lambda (k)
+             (pcase k
+               ((pred symbolp) (mugur--keycode k))
+               ;;((pred stringp) (list 'layer k))
+               ))
+           it)
+        (and (not (member nil it))
+             it)
+        (format "DANCE(%s, %s)" (car it) (cadr it))))
+
 (defun mugur--macro (mugur-key)
   "If MUGUR-KEY is a mugur-macro, return its qmk-keycode, nil otherwise.
 MUGUR-KEY is either a string or a list of more than one element,
@@ -704,11 +724,13 @@ The output of the file is in the generated qmk-keymaps folder, as
 required by the qmk rules."
   (mugur--write-file "rules.mk"
    (format
-    "FORCE_NKRO      = yes
-     LEADER_ENABLE   = %s
-     RGBLIGHT_ENABLE = %s"
+    "FORCE_NKRO       = yes
+     LEADER_ENABLE    = %s
+     RGBLIGHT_ENABLE  = %s
+     TAP_DANCE_ENABLE = %s"
     mugur-leader-enable
-    mugur-rgblight-enable)))
+    mugur-rgblight-enable
+    mugur-tapdance-enable)))
 
 (defun mugur--write-config-h ()
   "Generate the qmk config.h file.
@@ -730,7 +752,8 @@ the qmk-keycodes.  The output of the file is in the generated
 qmk-keymaps folder, as required by the qmk rules."
   (let* ((qmk-keymap (mugur--transform-keymap mugur-keymap))
          (qmk-layers (mugur--qmk-keymap-layers qmk-keymap))
-         (qmk-macros (mugur--qmk-keymap-macros qmk-keymap)))
+         (qmk-macros (mugur--qmk-keymap-macros qmk-keymap))
+         (qmk-tapdances (mugur--qmk-keymap-tapdances qmk-keymap)))
 
     (mugur--write-file "keymap.c"
      (format
@@ -745,6 +768,17 @@ qmk-keymaps folder, as required by the qmk rules."
       /* Macro names */
       enum custom_keycodes {
           EPRM = SAFE_RANGE,
+          %s
+      };
+
+      /* Tap Dance Declarations */
+      enum {
+          TD_START,
+          %s
+      };
+
+      /* Tap Dance definitions */
+      qk_tap_dance_action_t tap_dance_actions[] = {    
           %s
       };
       
@@ -776,6 +810,24 @@ qmk-keymaps folder, as required by the qmk rules."
            ;; macro1, macro2, etc..
            (format "%s, \n       %s" acc it)
            (mapcar #'car qmk-macros))
+        "")
+
+      ;; Tap Dance Declarations
+      (if qmk-tapdances
+          (--reduce-r
+           (format "%s, \n       %s" acc it)
+           (mapcar #'car qmk-tapdances))
+        "")
+
+      ;; Tap Dance Definitions
+      (if qmk-tapdances
+          (--reduce-r
+           (format "%s, \n\n       %s" it acc)
+           (mapcar (lambda (d)
+                (format "[%s] = ACTION_TAP_DANCE_DOUBLE(%s, %s)"
+                        (car d) (caadr d) (cadr (cadr d))))
+              
+              qmk-tapdances))
         "")
 
       ;; All the qmk-layers
@@ -839,6 +891,8 @@ respective contents, macros and layers, respectively.  Return nil
 otherwise."
   (let* ((macros-list)
          (macro-count 0)
+         (tapdances-list)
+         (tapdances-count 0)
          (qmk-keymap
           ;;For each layer in the mugur-keymap
           (mapcar (lambda (mugur-layer)
@@ -863,6 +917,17 @@ otherwise."
                             (push (list macro-name qmk-keycode)
                                   macros-list)
                             macro-name))
+
+                         ((rx bol "DANCE(" anything )
+                          (aand (s-replace "DANCE(" "" qmk-keycode)
+                                (s-replace ")" "" it)
+                                (s-split "," it)
+                                (mapcar #'s-trim it)
+                                (let ((tapdance-name (format "DANCE_%s"
+                                                             (cl-incf tapdances-count))))
+                                  (push (list tapdance-name it)
+                                        tapdances-list)
+                                  (format "TD(%s)" tapdance-name))))
                          
                          ;; Any other qmk-key we leave as it was returned from
                          ;; `mugur--keycode'.
@@ -873,6 +938,7 @@ otherwise."
              mugur-keymap)))
     ;; Build the returning list of macros and layers, tagging them.
     `((macros ,(reverse macros-list))
+      (tapdances ,(reverse tapdances-list))
       (layers ,qmk-keymap))))
 
 (defun mugur--qmk-keymap-layers (qmk-keymap)
@@ -884,6 +950,12 @@ otherwise."
 (defun mugur--qmk-keymap-macros (qmk-keymap)
   "Extract the qmk-macros from a QMK-KEYMAP."
   (aand (--find (eq (car it) 'macros)
+                qmk-keymap)
+        (cadr it)))
+
+(defun mugur--qmk-keymap-tapdances (qmk-keymap)
+  "Extract the qmk-tapdances from a QMK-KEYMAP."
+  (aand (--find (eq (car it) 'tapdances)
                 qmk-keymap)
         (cadr it)))
 
@@ -931,6 +1003,8 @@ that mugur-key."
   (("C-x" "8" "RET") "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
   (("C-x"  8   RET)  "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
 
+  ((DANCE a b)     "DANCE(KC_A, KC_B)")
+  
   ;;; Keybound emacs functions.
   ;; Multikeys keybindings (C-x 8 RET)
   (insert-char     "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")  
@@ -964,14 +1038,16 @@ that mugur-key."
    (equal (mugur--transform-keymap
            '(("base" a b c)))
           '((macros nil)
+            (tapdances nil)
             (layers (("base" "KC_A" "KC_B" "KC_C"))))))
   (should
    (equal (mugur--transform-keymap
            '(("base" a b c)
-             ("numbers" 1 2 "three")))
+             ("numbers" 1 2 "three" (DANCE a b))))
           '((macros (("MACRO_1" "SEND_STRING(\"three\")")))
+            (tapdances (("DANCE_1" ("KC_A" "KC_B"))))
             (layers (("base" "KC_A" "KC_B" "KC_C")
-                     ("numbers" "KC_1" "KC_2" "MACRO_1")))))))
+                     ("numbers" "KC_1" "KC_2" "MACRO_1" "TD(DANCE_1)")))))))
 
 (ert-deftest mugur-invalid-keymaps ()
   "Test invalid mugur-keymaps."
