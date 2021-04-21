@@ -1,7 +1,34 @@
 # Mugur
 
+[![MELPA](https://melpa.org/packages/mugur-badge.svg)](https://melpa.org/#/mugur)
+
 An Emacs configurator for [QMK](https://github.com/qmk/qmk_firmware) compatible
 keyboards.
+
+# Table of Contents
+
+- [Mugur](#mugur)
+- [How it works](#how-it-works)
+- [Supported QMK keycodes and features](#supported-qmk-keycodes-and-features)
+  * [Basic Keycodes](#basic-keycodes)
+  * [Mod-tap](#mod-tap)
+  * [Modifiers](#modifiers)
+  * [One Shot Keys](#one-shot-keys)
+  * [Layer Toggle](#layer-toggle)
+  * [Macros](#macros)
+  * [Tap Dance](#tap-dance)
+  * [Emacs keybound functions](#emacs-keybound-functions)
+  * [User Defined Keys](#user-defined-keys)
+- [Configuration](#configuration)
+  * [Paths and names](#paths-and-names)
+  * [Rules (rules.mk)](#rules--rulesmk-)
+  * [Configs (config.h)](#configs--configh-)
+  * [Others](#others)
+- [Supported Keyboards](#supported-keyboards)
+- [Other points](#other-points)
+- [An Extended Example for Ergodox](#an-extended-example-for-ergodox)
+
+(Table of contents generated with [markdown-toc](http://ecotrust-canada.github.io/markdown-toc/))
 
 # How it works
 
