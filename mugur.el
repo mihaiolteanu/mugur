@@ -750,111 +750,99 @@ required by the qmk rules."
 This is the main qmk file that contains the qmk-matrix and all
 the qmk-keycodes.  The output of the file is in the generated
 qmk-keymaps folder, as required by the qmk rules."
-  (let* ((qmk-keymap (mugur--transform-keymap mugur-keymap))
-         (qmk-layers (mugur--qmk-keymap-layers qmk-keymap))
-         (qmk-macros (mugur--qmk-keymap-macros qmk-keymap))
-         (qmk-tapdances (mugur--qmk-keymap-tapdances qmk-keymap)))
-
+  (let ((qmk-keymap (mugur--transform-keymap mugur-keymap)))
     (mugur--write-file "keymap.c"
      (format
       "#include QMK_KEYBOARD_H
       #include \"version.h\"
+            
+      /* Macros */
+      %s
+
+      /* Tap Dances */
+      %s
       
-      /* Layer names */
-      enum layer_codes {
-          %s
-      };
-      
-      /* Macro names */
-      enum custom_keycodes {
-          EPRM = SAFE_RANGE,
-          %s
-      };
+      /* Layer Codes and Matrix */
+      %s"
+      (mugur--keymap-c-macros    (mugur--qmk-keymap-macros qmk-keymap))
+      (mugur--keymap-c-tapdances (mugur--qmk-keymap-tapdances qmk-keymap))
+      (mugur--keymap-c-matrix    (mugur--qmk-keymap-layers qmk-keymap))))))
 
-      /* Tap Dance Declarations */
-      enum {
-          TD_START,
-          %s
-      };
+(defun mugur--keymap-c-macros (qmk-macros)
+  "Return the equivalent qmk C code for the QMK-MACROS list.
+QMK-MACROS is a list of macros, where the car of each element is
+the macro name and the cadr is the SEND_STRING of the macro.  The
+return string is the qmk implementation, as seen in the keymap.c
+file, of the macro functionality.  If QMK-MACROS is empty,
+return the empty string."
+  (if qmk-macros
+      (concat
+       ;; Declare the macro keycodes.
+       (format "enum custom_keycodes {EPRM = SAFE_RANGE, %s};\n\n"
+               (--reduce-r
+                (format "%s, %s" acc it)
+                (mapcar #'car qmk-macros)))
 
-      /* Tap Dance definitions */
-      qk_tap_dance_action_t tap_dance_actions[] = {    
-          %s
-      };
-      
-      /* All the qmk-layers, with layer names and keys */
-      const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
-          %s
-      };
-      
-      /* Macros processing */
-      bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-          if (record->event.pressed) {
-              switch (keycode) {
-                 case EPRM:
-                 eeconfig_init();
-                 return false;
-              %s
-      	      }
-          }
-         return true;
-      }"
-      ;; Layer names
-      (--reduce-r
-       (format "%s, \n       %s" acc it)
-       (reverse (--map (upcase (car it)) qmk-layers)))
+       ;; Implement the macros.
+       (format "bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+                  if (record->event.pressed) {
+                    switch (keycode) {%s}
+                  }
+                  return true;
+                }"
+               (s-join ""
+                (--map
+                 ;; case macro_name: SEND_STRING(...); return false;
+                 (format "\ncase %s: %s; return false;"
+                         (car it) (cadr it))
+                 qmk-macros))))
+    ""))
 
-      ;; Macro names
-      (if qmk-macros
-          (--reduce-r
-           ;; macro1, macro2, etc..
-           (format "%s, \n       %s" acc it)
-           (mapcar #'car qmk-macros))
-        "")
+(defun mugur--keymap-c-tapdances (qmk-tapdances)
+  "Return the equivalent qmk C code for the QMK-TAPDANCES list.
+QMK-TAPDANCES is a list of tapdances, where the car of each
+element is the tapdance name and the cadr is a list of the
+qmk-keys used for the tapdance.  The return string is the qmk
+implementation, as seen in the keymap.c file, of the tapdance
+functionality.  If QMK-TAPDANCES is nil, return the empty
+string."
+  (if qmk-tapdances
+      (concat
+       ;; Declare the tapdances keycodes
+       (format "enum {%s}; \n\n"
+               (s-join ", " (mapcar #'car qmk-tapdances)))
+       
+       ;; Implement the tapdances.
+       (format "qk_tap_dance_action_t tap_dance_actions[] = {%s\n};"
+               (s-join ", "                
+                (--map (format "\n[%s] = ACTION_TAP_DANCE_DOUBLE(%s, %s)"
+                               (car it) (caadr it) (cadr (cadr it)))
+                       qmk-tapdances))))
+    ;; No tapdances, nothing to do.
+    ""))
 
-      ;; Tap Dance Declarations
-      (if qmk-tapdances
-          (--reduce-r
-           (format "%s, \n       %s" acc it)
-           (mapcar #'car qmk-tapdances))
-        "")
+(defun mugur--keymap-c-matrix (qmk-layers)
+  "Return the qmk equivalent C code for the QMK-LAYERS list.
+QMK-LAYERS is a list of qmk-layers (which contain qmk-keycodes).
+The returned string is the qmk implementation, as seen in the
+keymap.c file, of the layer_codes enum and keymaps matrix that
+contains all the layers and keys."
+  (concat
+   (format "enum layer_codes {%s}; \n\n"
+           (s-join ", "            
+                   (reverse (--map (upcase (car it)) qmk-layers))))
 
-      ;; Tap Dance Definitions
-      (if qmk-tapdances
-          (--reduce-r
-           (format "%s, \n\n       %s" it acc)
-           (mapcar (lambda (d)
-                (format "[%s] = ACTION_TAP_DANCE_DOUBLE(%s, %s)"
-                        (car d) (caadr d) (cadr (cadr d))))
-              
-              qmk-tapdances))
-        "")
-
-      ;; All the qmk-layers
-      (--reduce-r
-       ;; layer1, layer2, etc..
-       (format "%s, \n\n       %s" it acc)
-       (mapcar (lambda (k)
-            ;; Layer name, layout name, layer keys
-            (format "[%s] = %s(%s)"
-                    (upcase (car k))
-                    (or mugur-layout-name
-                        (error "The mugur-layout-name variable is not set"))
-                    ;; Add comma between the keys and transform
-                    ;; the keys into a big string.
-                    (--reduce-r (format "%s, %s" it acc) (cdr k))))
-          qmk-layers))
-
-      ;; Macros
-      (if qmk-macros
-          (--reduce-r
-           (format "%s\n         %s" it acc)
-           (--map
-            ;; case macro_name: SEND_STRING(...); return false;
-            (format "case %s:\n %s;\n return false;"
-                    (car it) (cadr it))
-            qmk-macros))
-        "")))))
+   (format "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {%s};"
+           (s-join ","                   
+            (--map
+             ;; Layer name, layout name, layer keys
+             (format "\n\n[%s] = %s(%s)"
+                     (upcase (car it))
+                     (or mugur-layout-name
+                         (error "The mugur-layout-name variable is not set"))
+                     ;; Join the keys of this layer
+                     (s-join ", " (cdr it)))
+             qmk-layers)))))
 
 (defun mugur--write-file (file contents)
   "Write CONTENTS to FILE in the correct qmk_firmware location.
