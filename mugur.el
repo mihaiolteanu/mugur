@@ -120,7 +120,7 @@ after you press the Leader Key key."
   :type '(integer :tag "ms")
   :group 'mugur)
 
-(defcustom mugur-leader-per-key-timing nil
+(defcustom mugur-leader-per-key-timing t
   "Enable or disable LEADER_PER_KEY_TIMING option.
 If enabled, the Leader Key timeout is reset after each key is
 tapped."
@@ -128,6 +128,11 @@ tapped."
   :group 'mugur)
 
 ;; Others
+(defcustom mugur-leader-keys nil
+  "List of Leader Keys and their expansion."
+  :type  '(alist :tag "keys")
+  :group 'mugur)
+
 (defcustom mugur-user-defined-keys nil
   "User defined keys for long or often used combinations.
 A list of lists, where the car of each antry is a symbol (a name
@@ -413,7 +418,7 @@ equivalent."
     ((or 'gesc              'grave_esc ) "KC_GESC"                ) ;Escape when pressed, ` when Shift or GUI are held
 
     ;; Leader Key
-    (    'lead                           "KC_LEADER"              ) ;The Leader Key
+    (    'lead                           "KC_LEAD"                ) ;The Leader Key
 
     ;; Mouse Keys
     ((or 'ms_up             'ms_u      ) "KC_MS_UP"               ) ;Move cursor up
@@ -881,10 +886,14 @@ qmk-keymaps folder, as required by the qmk rules."
       /* Tap Dances */
       %s
       
+      /* Leader Keys */
+      %s
+      
       /* Layer Codes and Matrix */
       %s"
     (mugur--keymap-c-macros    (mugur--qmk-keymap-macros qmk-keymap))
     (mugur--keymap-c-tapdances (mugur--qmk-keymap-tapdances qmk-keymap))
+    (mugur--keymap-c-leader-keys)
     (mugur--keymap-c-matrix    (mugur--qmk-keymap-layers qmk-keymap)))))
 
 (defun mugur--keymap-c-macros (qmk-macros)
@@ -938,6 +947,33 @@ string."
                                (car it) (caadr it) (cadr (cadr it)))
                        qmk-tapdances))))
     ;; No tapdances, nothing to do.
+    ""))
+
+(defun mugur--keymap-c-leader-keys ()
+  "Generate the C code equivalent for the `mugur-leader-keys'."
+  (if mugur-leader-keys
+      (format
+       "LEADER_EXTERNS(); 
+
+        void matrix_scan_user(void) {
+            LEADER_DICTIONARY() {
+                leading = false;
+                leader_end();
+                %s
+            }
+        }"
+       (s-join ""
+        (--map
+         (format "\nSEQ_%s(%s){%s;}"
+                 (pcase (length (car it))
+                   (1 "ONE_KEY")
+                   (2 "TWO_KEYS")
+                   (3 "THREE_KEYS")
+                   (4 "FOUR_KEYS")
+                   (5 "FIVE_KEYS"))
+                 (s-join ", " (mapcar #'mugur--keycode (car it)))
+                 (mugur--macro (cadr it)))
+         mugur-leader-keys)))
     ""))
 
 (defun mugur--keymap-c-matrix (qmk-layers)

@@ -157,6 +157,20 @@ when building.
 | (DANCE a "this") | Invalid, mugur only supports basic mugur-keycodes, not macros, nor layers, etc.   |
 | (DANCE a b c)    | Invalid, can't do more than two things.                                           |
 
+## Leader Key
+Tap the Leader Key and then up to five keys in quick succession, before the
+`LEADER_TIMEOUT` expires, and send whatever macro you like. Use the
+`mugur-leader-keys` to setup what keys do what
+
+```emacs-lisp
+(setf mugur-leader-keys
+      '(((s d f) "s, d and then f")
+        ((z)     (M-x "kill"))))
+```
+
+In the above example, tapping the Leader Key, followed by `s`, `d` and then `f`
+will send the given string. The mugur-key after the first list, must be a valid
+[macro](#macros).
 
 ## Emacs keybound functions
 For Emacs functions that have a keybinding, the function name can be directly specified as a mugur-key.
