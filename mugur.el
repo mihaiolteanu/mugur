@@ -860,10 +860,6 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
   (mugur--write-keymap-c
    (mugur--transform-keymap mugur-keymap)))
 
-(defun mugur--mugur-key-present (mugur-key mugur-keymap &optional key)
-  (--first (cl-member mugur-key it)
-           mugur-keymap))
-
 (defun mugur--write-rules-mk (leader rgblight tapdance combo)
   "Generate the qmk rules.mk file."
   (mugur--write-file "rules.mk"
