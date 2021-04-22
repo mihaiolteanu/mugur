@@ -17,6 +17,7 @@ keyboards.
   * [Layer Toggle](#layer-toggle)
   * [Macros](#macros)
   * [Tap Dance](#tap-dance)
+  * [Leader Key](#leader-key)
   * [Emacs keybound functions](#emacs-keybound-functions)
   * [User Defined Keys](#user-defined-keys)
 - [Configuration](#configuration)
