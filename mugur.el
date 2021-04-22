@@ -104,24 +104,26 @@ your keyboard.  Some have just \"LAYOUT\", others
   :group 'mugur)
 
 ;; Rules
-(defcustom mugur-leader-enable "no"
-  "Enable the leader key functionality."
-  :type '(string :tag "yes/no")
-  :group 'mugur)
-
-(defcustom mugur-rgblight-enable "no"
-  "Enable the rgblight functionality."
-  :type '(string :tag "yes/no")
-  :group 'mugur)
-
-(defcustom mugur-tapdance-enable "no"
-  "Enable the tapdance functionality."
-  :type '(string :tag "yes/no")
-  :group 'mugur)
 
 ;; Configs
 (defcustom mugur-tapping-term 180
-  "Tapping term, in ms."
+  "Tapping term, in ms.
+ This is the maximum time allowed between taps of your Tap Dance
+ mugur-key."
+  :type '(integer :tag "ms")
+  :group 'mugur)
+
+(defcustom mugur-leader-timeout 300
+  "Timeout for the Leader Key, in ms.
+This is the time to wait to complete the Leader Key sequence
+after you press the Leader Key key."
+  :type '(integer :tag "ms")
+  :group 'mugur)
+
+(defcustom mugur-leader-per-key-timing nil
+  "Enable or disable LEADER_PER_KEY_TIMING option.
+If enabled, the Leader Key timeout is reset after each key is
+tapped."
   :type '(integer :tag "ms")
   :group 'mugur)
 
@@ -713,6 +715,7 @@ equivalent, otherwise return nil."
 ;;;; ---------------------------------------------------------------------------
 (defun mugur--transform-keymap (mugur-keymap)
   "Transform the MUGUR-KEYMAP into its qmk-keymap equivalent.
+
 Every macro string is replaced with a macro name, created in
 place (MACRO_1, MACRO_2, etc.), and all the macros, toghether
 with their names are added to one list.
@@ -801,26 +804,47 @@ otherwise."
 ;;;; and rules.mk files).
 ;;;; ---------------------------------------------------------------------------
 (defun mugur-mugur (mugur-keymap)
-  "Use the MUGUR-KEMAP to generate the entire equivalent qmk-keymap.
-MUGUR-KEYMAP is a list of mugur-layers."
-  (mugur--write-rules-mk)
+  "Use the MUGUR-KEMAP to generate the equivalent qmk C code.
+MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
+  (mugur--write-rules-mk
+   ;; 'lead is the Leader Key and it enables the functionality.  The algorithm
+   ;; searches for the first mugur-layer where 'lead is found and returns
+   ;; "yes". If no 'lead key is found, return "no"
+   (if (--first (cl-member 'lead it)
+                mugur-keymap)
+       "yes" "no")
+   
+   ;; Assume rgb_tog is always present if someone wants to use the rgblighting
+   ;; functionality. If the mugur-key is present, enable the functionality.
+   (if (--first (cl-member 'rgb_tog it)
+                mugur-keymap)
+       "yes" "no")
+   
+   ;; If at least one tap dance mugur-key is present, enable the functionality.
+   (if (--first
+        (cl-member 'DANCE it
+                   :key (lambda (k)
+                          (and (listp k) (car k))))
+        mugur-keymap)
+       "yes" "no"))
+  
   (mugur--write-config-h)
-  (mugur--write-keymap-c mugur-keymap))
+  (mugur--write-keymap-c
+   (mugur--transform-keymap mugur-keymap)))
 
-(defun mugur--write-rules-mk ()
-  "Generate the qmk rules.mk file.
-Use the user supplied custom variables to set up all the rules.
-The output of the file is in the generated qmk-keymaps folder, as
-required by the qmk rules."
+(defun mugur--mugur-key-present (mugur-key mugur-keymap &optional key)
+  (--first (cl-member mugur-key it)
+           mugur-keymap))
+
+(defun mugur--write-rules-mk (leader rgblight tapdance)
+  "Generate the qmk rules.mk file."
   (mugur--write-file "rules.mk"
    (format
     "FORCE_NKRO       = yes
      LEADER_ENABLE    = %s
      RGBLIGHT_ENABLE  = %s
      TAP_DANCE_ENABLE = %s"
-    mugur-leader-enable
-    mugur-rgblight-enable
-    mugur-tapdance-enable)))
+    leader rgblight tapdance)))
 
 (defun mugur--write-config-h ()
   "Generate the qmk config.h file.
@@ -831,19 +855,24 @@ required by the qmk rules."
    (format
     "#undef TAPPING_TERM
      #define TAPPING_TERM %s
+     #define LEADER_TIMEOUT %s
+     %s      LEADER_PER_KEY_TIMING
      #define FORCE_NKRO
      #undef RGBLIGHT_ANIMATIONS"
-    mugur-tapping-term)))
+    mugur-tapping-term
+    mugur-leader-timeout
+    (if mugur-leader-per-key-timing
+        "#define" "#undef")
+    )))
 
-(defun mugur--write-keymap-c (mugur-keymap)
+(defun mugur--write-keymap-c (qmk-keymap)
   "Generate the qmk keymap.c file from the MUGUR-KEYMAP.
 This is the main qmk file that contains the qmk-matrix and all
 the qmk-keycodes.  The output of the file is in the generated
 qmk-keymaps folder, as required by the qmk rules."
-  (let ((qmk-keymap (mugur--transform-keymap mugur-keymap)))
-    (mugur--write-file "keymap.c"
-     (format
-      "#include QMK_KEYBOARD_H
+  (mugur--write-file "keymap.c"
+   (format
+    "#include QMK_KEYBOARD_H
       #include \"version.h\"
             
       /* Macros */
@@ -854,9 +883,9 @@ qmk-keymaps folder, as required by the qmk rules."
       
       /* Layer Codes and Matrix */
       %s"
-      (mugur--keymap-c-macros    (mugur--qmk-keymap-macros qmk-keymap))
-      (mugur--keymap-c-tapdances (mugur--qmk-keymap-tapdances qmk-keymap))
-      (mugur--keymap-c-matrix    (mugur--qmk-keymap-layers qmk-keymap))))))
+    (mugur--keymap-c-macros    (mugur--qmk-keymap-macros qmk-keymap))
+    (mugur--keymap-c-tapdances (mugur--qmk-keymap-tapdances qmk-keymap))
+    (mugur--keymap-c-matrix    (mugur--qmk-keymap-layers qmk-keymap)))))
 
 (defun mugur--keymap-c-macros (qmk-macros)
   "Return the equivalent qmk C code for the QMK-MACROS list.
