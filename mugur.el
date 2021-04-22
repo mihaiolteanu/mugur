@@ -879,7 +879,7 @@ return the empty string."
                     switch (keycode) {%s}
                   }
                   return true;
-                }"
+                };"
                (s-join ""
                 (--map
                  ;; case macro_name: SEND_STRING(...); return false;
