@@ -18,6 +18,7 @@ keyboards.
   * [Macros](#macros)
   * [Tap Dance](#tap-dance)
   * [Leader Key](#leader-key)
+  * [Combos](#combos)
   * [Emacs keybound functions](#emacs-keybound-functions)
   * [User Defined Keys](#user-defined-keys)
 - [Configuration](#configuration)
@@ -173,6 +174,20 @@ In the above example, tapping the Leader Key, followed by `s`, `d` and then `f`
 will send the given string. The mugur-key after the first list, must be a valid
 [macro](#macros).
 
+## Combos
+Hit two keys at once and send a different key. Set `mugur-combo-keys` to setup
+what key combinations do what,
+
+```emacs-lisp
+(setf mugur-combo-keys
+      '(((a b) x)
+        ((1 2) ?\.)))
+```
+
+In this example, pressing both `a` and `b` at the same time would send
+`x`. Pressing `1` and `2` would send the symbol `.`. Adjust the
+`mugur-combo-term` delay for the perfect experience.
+
 ## Emacs keybound functions
 For Emacs functions that have a keybinding, the function name can be directly specified as a mugur-key.
 
@@ -238,6 +253,12 @@ If 'lead (leader key) is available on the mugur-keymap,
     This is the maximum time allowed between taps of your Tap Dance
     mugur-key.
 
+**mugur-combo-term** 300
+
+    Combo term, in ms.
+    This is the maximum time allowed between two keypresses in which
+    they might be considered as Combos.
+
 **mugur-leader-timeout** 300
     
     Timeout for the Leader Key, in ms.
@@ -250,7 +271,19 @@ If 'lead (leader key) is available on the mugur-keymap,
     If enabled, the Leader Key timeout is reset after each key is
     tapped.
 
-## Others
+## Special Keys
+
+**mugur-leader-keys** nil
+
+    List of Leader Keys and their expansion.
+    The items are lists, where the car is a list of valid mugur-keys
+    and the cadr is a valid mugur-macro.
+
+**mugur-combo-keys** nil
+
+    List of Combo Keys and their expansion.
+    The items are lists, where the car is a list of two valid
+    mugur-keys and the cadr is a valid mugur-key.
 
 **mugur-user-defined-keys** nil
 

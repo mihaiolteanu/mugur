@@ -113,6 +113,13 @@ your keyboard.  Some have just \"LAYOUT\", others
   :type '(integer :tag "ms")
   :group 'mugur)
 
+(defcustom mugur-combo-term 300
+  "Combo term, in ms.
+ This is the maximum time allowed between two keypresses in which
+ they might be considered as Combos. "
+  :type '(integer :tag "ms")
+  :group 'mugur)
+
 (defcustom mugur-leader-timeout 300
   "Timeout for the Leader Key, in ms.
 This is the time to wait to complete the Leader Key sequence
@@ -129,7 +136,16 @@ tapped."
 
 ;; Others
 (defcustom mugur-leader-keys nil
-  "List of Leader Keys and their expansion."
+  "List of Leader Keys and their expansion.
+The items are lists, where the car is a list of valid mugur-keys
+and the cadr is a valid mugur-macro."
+  :type  '(alist :tag "keys")
+  :group 'mugur)
+
+(defcustom mugur-combo-keys nil
+  "List of Combo Keys and their expansion.
+The items are lists, where the car is a list of two valid
+mugur-keys and the cadr is a valid mugur-key."
   :type  '(alist :tag "keys")
   :group 'mugur)
 
@@ -831,7 +847,9 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
                    :key (lambda (k)
                           (and (listp k) (car k))))
         mugur-keymap)
-       "yes" "no"))
+       "yes" "no")
+
+   (if mugur-combo-keys "yes" "no"))
   
   (mugur--write-config-h)
   (mugur--write-keymap-c
@@ -841,15 +859,16 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
   (--first (cl-member mugur-key it)
            mugur-keymap))
 
-(defun mugur--write-rules-mk (leader rgblight tapdance)
+(defun mugur--write-rules-mk (leader rgblight tapdance combo)
   "Generate the qmk rules.mk file."
   (mugur--write-file "rules.mk"
    (format
     "FORCE_NKRO       = yes
      LEADER_ENABLE    = %s
      RGBLIGHT_ENABLE  = %s
-     TAP_DANCE_ENABLE = %s"
-    leader rgblight tapdance)))
+     TAP_DANCE_ENABLE = %s
+     COMBO_ENABLE     = %s"
+    leader rgblight tapdance combo)))
 
 (defun mugur--write-config-h ()
   "Generate the qmk config.h file.
@@ -860,15 +879,18 @@ required by the qmk rules."
    (format
     "#undef TAPPING_TERM
      #define TAPPING_TERM %s
+     #define COMBO_TERM %s
      #define LEADER_TIMEOUT %s
      %s      LEADER_PER_KEY_TIMING
+     #define COMBO_COUNT %s
      #define FORCE_NKRO
      #undef RGBLIGHT_ANIMATIONS"
     mugur-tapping-term
+    mugur-combo-term
     mugur-leader-timeout
     (if mugur-leader-per-key-timing
         "#define" "#undef")
-    )))
+    (length mugur-combo-keys))))
 
 (defun mugur--write-keymap-c (qmk-keymap)
   "Generate the qmk keymap.c file from the MUGUR-KEYMAP.
@@ -888,12 +910,16 @@ qmk-keymaps folder, as required by the qmk rules."
       
       /* Leader Keys */
       %s
+
+      /* Combos */
+      %s
       
       /* Layer Codes and Matrix */
       %s"
     (mugur--keymap-c-macros    (mugur--qmk-keymap-macros qmk-keymap))
     (mugur--keymap-c-tapdances (mugur--qmk-keymap-tapdances qmk-keymap))
     (mugur--keymap-c-leader-keys)
+    (mugur--keymap-c-combo-keys)
     (mugur--keymap-c-matrix    (mugur--qmk-keymap-layers qmk-keymap)))))
 
 (defun mugur--keymap-c-macros (qmk-macros)
@@ -974,6 +1000,36 @@ string."
                  (s-join ", " (mapcar #'mugur--keycode (car it)))
                  (mugur--macro (cadr it)))
          mugur-leader-keys)))
+    ""))
+
+(defun mugur--keymap-c-combo-keys ()
+  "Transform all the combo-keys into mugur-keys."
+  (aif (mapcar (lambda (entry)
+            (--map (if (listp it)
+                       (mapcar #'mugur--keycode it)
+                     (mugur--keycode it))
+                   entry))
+          mugur-combo-keys)
+      (concat
+       (format "enum {%s}; \n\n"
+               (s-join ", "
+                       (--map (s-join "__" it)
+                              (mapcar #'car it))))
+
+       (s-join "\n"
+               (--map (format "const uint16_t PROGMEM %s[] = {%s, %s, COMBO_END};"
+                              (downcase (s-join "__" (car it)))
+                              (caar it) (cadar it))
+                      it))
+
+       (format "\n\ncombo_t key_combos[%s] = {%s\n};"
+               (length mugur-combo-keys)
+               (s-join ","
+                       (--map (format "\n[%s] = COMBO(%s, %s)"
+                                      (s-join "__" (car it))
+                                      (downcase (s-join "__" (car it)))
+                                      (cadr it))
+                              it))))
     ""))
 
 (defun mugur--keymap-c-matrix (qmk-layers)
@@ -1107,6 +1163,22 @@ that mugur-key."
             (tapdances (("DANCE_1" ("KC_A" "KC_B"))))
             (layers (("base" "KC_A" "KC_B" "KC_C")
                      ("numbers" "KC_1" "KC_2" "MACRO_1" "TD(DANCE_1)")))))))
+
+(ert-deftest mugur-valid-combos ()
+  "Test the corect qmk C code generated for combo keys."
+  (let ((mugur-combo-keys '(((a b) x)
+                            ((1 2) ?\.))))
+    (should
+     (equal (mugur--keymap-c-combo-keys)
+"enum {KC_A__KC_B, KC_1__KC_2}; 
+
+const uint16_t PROGMEM kc_a__kc_b[] = {KC_A, KC_B, COMBO_END};
+const uint16_t PROGMEM kc_1__kc_2[] = {KC_1, KC_2, COMBO_END};
+
+combo_t key_combos[2] = {
+[KC_A__KC_B] = COMBO(kc_a__kc_b, KC_X),
+[KC_1__KC_2] = COMBO(kc_1__kc_2, KC_DOT)
+};"))))
 
 (ert-deftest mugur-invalid-keymaps ()
   "Test invalid mugur-keymaps."
