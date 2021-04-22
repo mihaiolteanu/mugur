@@ -985,7 +985,7 @@ contains all the layers and keys."
   (concat
    (format "enum layer_codes {%s}; \n\n"
            (s-join ", "            
-                   (reverse (--map (upcase (car it)) qmk-layers))))
+                   (--map (upcase (car it)) qmk-layers)))
 
    (format "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {%s};"
            (s-join ","                   
