@@ -172,7 +172,8 @@ Tap the Leader Key and then up to five keys in quick succession, before the
 
 In the above example, tapping the Leader Key, followed by `s`, `d` and then `f`
 will send the given string. The mugur-key after the first list, must be a valid
-[macro](#macros).
+[macro](#macros). The Leader Key is the mugur-key named `lead` and can appear
+anywhere on your keymap.
 
 ## Combos
 Hit two keys at once and send a different key. Set `mugur-combo-keys` to setup
