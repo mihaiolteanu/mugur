@@ -9,7 +9,7 @@ keyboards.
 
 - [Mugur](#mugur)
 - [How it works](#how-it-works)
-- [Supported QMK keycodes and features](#supported-qmk-keycodes-and-features)
+- [QMK Keycodes and Features](#qmk-keycodes-and-features)
   * [Basic Keycodes](#basic-keycodes)
   * [Mod-tap](#mod-tap)
   * [Modifiers](#modifiers)
@@ -25,7 +25,7 @@ keyboards.
   * [Paths and names](#paths-and-names)
   * [Rules (rules.mk)](#rules--rulesmk-)
   * [Configs (config.h)](#configs--configh-)
-  * [Others](#others)
+  * [Special Keys](#special-keys)
 - [Supported Keyboards](#supported-keyboards)
 - [Other points](#other-points)
 - [An Extended Example for Ergodox](#an-extended-example-for-ergodox)
@@ -53,7 +53,7 @@ There are other possibilities, qmk features and configurations to try, but that
 is the basics of it. See [an extended example for
 ergodox](#an-extended-example-for-ergodox) for a more rich mugur layout.
 
-# Supported QMK keycodes and features
+# QMK Keycodes and Features
 
 mugur-key is just a term I've invented for any of the symbols, characters,
 strings or lists that can appear in a mugur-keymap. In the above example, both
@@ -162,7 +162,7 @@ when building.
 ## Leader Key
 Tap the Leader Key and then up to five keys in quick succession, before the
 `LEADER_TIMEOUT` expires, and send whatever macro you like. Use the
-`mugur-leader-keys` to setup what keys do what
+`mugur-leader-keys` to setup what keys do what,
 
 ```emacs-lisp
 (setf mugur-leader-keys
@@ -189,7 +189,8 @@ In this example, pressing both `a` and `b` at the same time would send
 `mugur-combo-term` delay for the perfect experience.
 
 ## Emacs keybound functions
-For Emacs functions that have a keybinding, the function name can be directly specified as a mugur-key.
+For Emacs functions that have a keybinding, the function name can be directly
+specified as a mugur-key.
 
 | mugur-keycode | example comment                                                                     |
 |:--------------|:------------------------------------------------------------------------------------|
