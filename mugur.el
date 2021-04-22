@@ -706,9 +706,99 @@ equivalent, otherwise return nil."
 
 
 ;;;; ---------------------------------------------------------------------------
-;;;; This section handles the transformation of the mugur-keymap into its
-;;;; qmk-keymap equivalent and the generation of the qmk C code (keymap.c,
-;;;; config.h and rules.mk files).
+;;;; The previous section handled the transformation of just one muguru-key into
+;;;; its qmk-keycode equivalent.  This section considers the whole mugur-keymap
+;;;; and its transformation into qmk-keycodes and its preparation for writing
+;;;; the C code files.
+;;;; ---------------------------------------------------------------------------
+(defun mugur--transform-keymap (mugur-keymap)
+  "Transform the MUGUR-KEYMAP into its qmk-keymap equivalent.
+Every macro string is replaced with a macro name, created in
+place (MACRO_1, MACRO_2, etc.), and all the macros, toghether
+with their names are added to one list.
+
+If all the mugur-keys have qmk-keycodes and all the mugur-layers
+are valid, return a list of two elements, where the first element
+is a list of all the macros discovered together with their newly
+created names, and the second element is a list of all the
+layers, with all the mugur-keys transformed into their
+qmk-keycodes equivalents.  Both lists are tagged with their
+respective contents, macros and layers, respectively.  Return nil
+otherwise."
+  (let* ((macros-list)
+         (macro-count 0)
+         (tapdances-list)
+         (tapdances-count 0)
+         (qmk-keymap
+          ;;For each layer in the mugur-keymap
+          (mapcar (lambda (mugur-layer)
+               (cons
+                ;; Transform the mugur-layer's name, if its valid
+                (or (mugur--to-string (car mugur-layer))
+                    (error (format "Invalid mugur layer name, %s" (car mugur-layer))))
+                ;; ...and all layer's mugur-keys
+                (mapcar (lambda (mugur-key)
+                     (let ((qmk-keycode (mugur--keycode mugur-key)))
+                       (pcase qmk-keycode
+                         ;;No such qmk key
+                         ((pred null)
+                          (error (format "Invalid mugur key, %s" mugur-key)))
+                         
+                         ;; If it's a macro, add the macro name together with
+                         ;; its value to the list of macros. The resulting
+                         ;; qmk-keycode for the mugur-macro is the newly created
+                         ;; macro name and not the SEND_STRING string.
+                         ((rx "SEND_STRING" anything)
+                          (let ((macro-name (format "MACRO_%s" (cl-incf macro-count))))
+                            (push (list macro-name qmk-keycode)
+                                  macros-list)
+                            macro-name))
+
+                         ((rx bol "DANCE(" anything )
+                          (aand (s-replace "DANCE(" "" qmk-keycode)
+                                (s-replace ")" "" it)
+                                (s-split "," it)
+                                (mapcar #'s-trim it)
+                                (let ((tapdance-name (format "DANCE_%s"
+                                                             (cl-incf tapdances-count))))
+                                  (push (list tapdance-name it)
+                                        tapdances-list)
+                                  (format "TD(%s)" tapdance-name))))
+                         
+                         ;; Any other qmk-key we leave as it was returned from
+                         ;; `mugur--keycode'.
+                         ((pred stringp) qmk-keycode))))
+                   ;; The first item of the mugur-layer is the layer's name,
+                   ;; handled above.
+                   (cdr mugur-layer))))
+             mugur-keymap)))
+    ;; Build the returning list of macros and layers, tagging them.
+    `((macros ,(reverse macros-list))
+      (tapdances ,(reverse tapdances-list))
+      (layers ,qmk-keymap))))
+
+(defun mugur--qmk-keymap-layers (qmk-keymap)
+  "Extract the qmk-layers from a QMK-KEYMAP."
+  (aand (--find (eq (car it) 'layers)
+                qmk-keymap)
+        (cadr it)))
+
+(defun mugur--qmk-keymap-macros (qmk-keymap)
+  "Extract the qmk-macros from a QMK-KEYMAP."
+  (aand (--find (eq (car it) 'macros)
+                qmk-keymap)
+        (cadr it)))
+
+(defun mugur--qmk-keymap-tapdances (qmk-keymap)
+  "Extract the qmk-tapdances from a QMK-KEYMAP."
+  (aand (--find (eq (car it) 'tapdances)
+                qmk-keymap)
+        (cadr it)))
+
+
+;;;; ---------------------------------------------------------------------------
+;;;; This section handles the generation of the qmk C code (keymap.c, config.h
+;;;; and rules.mk files).
 ;;;; ---------------------------------------------------------------------------
 (defun mugur-mugur (mugur-keymap)
   "Use the MUGUR-KEMAP to generate the entire equivalent qmk-keymap.
@@ -862,90 +952,6 @@ they don't already exist."
           (make-directory fparents))
         (concat fparents file))
     (insert contents)))
-
-(defun mugur--transform-keymap (mugur-keymap)
-  "Transform the MUGUR-KEYMAP into its qmk-keymap equivalent.
-Every macro string is replaced with a macro name, created in
-place (MACRO_1, MACRO_2, etc.), and all the macros, toghether
-with their names are added to one list.
-
-If all the mugur-keys have qmk-keycodes and all the mugur-layers
-are valid, return a list of two elements, where the first element
-is a list of all the macros discovered together with their newly
-created names, and the second element is a list of all the
-layers, with all the mugur-keys transformed into their
-qmk-keycodes equivalents.  Both lists are tagged with their
-respective contents, macros and layers, respectively.  Return nil
-otherwise."
-  (let* ((macros-list)
-         (macro-count 0)
-         (tapdances-list)
-         (tapdances-count 0)
-         (qmk-keymap
-          ;;For each layer in the mugur-keymap
-          (mapcar (lambda (mugur-layer)
-               (cons
-                ;; Transform the mugur-layer's name, if its valid
-                (or (mugur--to-string (car mugur-layer))
-                    (error (format "Invalid mugur layer name, %s" (car mugur-layer))))
-                ;; ...and all layer's mugur-keys
-                (mapcar (lambda (mugur-key)
-                     (let ((qmk-keycode (mugur--keycode mugur-key)))
-                       (pcase qmk-keycode
-                         ;;No such qmk key
-                         ((pred null)
-                          (error (format "Invalid mugur key, %s" mugur-key)))
-                         
-                         ;; If it's a macro, add the macro name together with
-                         ;; its value to the list of macros. The resulting
-                         ;; qmk-keycode for the mugur-macro is the newly created
-                         ;; macro name and not the SEND_STRING string.
-                         ((rx "SEND_STRING" anything)
-                          (let ((macro-name (format "MACRO_%s" (cl-incf macro-count))))
-                            (push (list macro-name qmk-keycode)
-                                  macros-list)
-                            macro-name))
-
-                         ((rx bol "DANCE(" anything )
-                          (aand (s-replace "DANCE(" "" qmk-keycode)
-                                (s-replace ")" "" it)
-                                (s-split "," it)
-                                (mapcar #'s-trim it)
-                                (let ((tapdance-name (format "DANCE_%s"
-                                                             (cl-incf tapdances-count))))
-                                  (push (list tapdance-name it)
-                                        tapdances-list)
-                                  (format "TD(%s)" tapdance-name))))
-                         
-                         ;; Any other qmk-key we leave as it was returned from
-                         ;; `mugur--keycode'.
-                         ((pred stringp) qmk-keycode))))
-                   ;; The first item of the mugur-layer is the layer's name,
-                   ;; handled above.
-                   (cdr mugur-layer))))
-             mugur-keymap)))
-    ;; Build the returning list of macros and layers, tagging them.
-    `((macros ,(reverse macros-list))
-      (tapdances ,(reverse tapdances-list))
-      (layers ,qmk-keymap))))
-
-(defun mugur--qmk-keymap-layers (qmk-keymap)
-  "Extract the qmk-layers from a QMK-KEYMAP."
-  (aand (--find (eq (car it) 'layers)
-                qmk-keymap)
-        (cadr it)))
-
-(defun mugur--qmk-keymap-macros (qmk-keymap)
-  "Extract the qmk-macros from a QMK-KEYMAP."
-  (aand (--find (eq (car it) 'macros)
-                qmk-keymap)
-        (cadr it)))
-
-(defun mugur--qmk-keymap-tapdances (qmk-keymap)
-  "Extract the qmk-tapdances from a QMK-KEYMAP."
-  (aand (--find (eq (car it) 'tapdances)
-                qmk-keymap)
-        (cadr it)))
 
 
 ;;;; ---------------------------------------------------------------------------
