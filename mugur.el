@@ -151,7 +151,7 @@ mugur-keys and the cadr is a valid mugur-key."
 
 (defcustom mugur-user-defined-keys nil
   "User defined keys for long or often used combinations.
-A list of lists, where the car of each antry is a symbol (a name
+A list of lists, where the car of each entry is a symbol (a name
 for the new key) and the cadr is any valid mugur-key."
   :type  '(alist :tag "keys")
   :group 'mugur)

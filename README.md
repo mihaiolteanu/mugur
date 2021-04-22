@@ -289,7 +289,7 @@ If 'lead (leader key) is available on the mugur-keymap,
 **mugur-user-defined-keys** nil
 
     User defined keys for long or often used combinations.
-    A list of lists, where the car of each antry is a symbol (a name
+    A list of lists, where the car of each entry is a symbol (a name
     for the new key) and the cadr is any valid mugur-key.
 
 **mugur-ignore-key** *'-x-*
