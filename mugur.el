@@ -489,6 +489,11 @@ equivalent."
     ((or 'right_angle        ?\>       ) "KC_RIGHT_ANGLE_BRACKET" ) ;>
     ((or 'question           ?\?       ) "KC_QUESTION"            ) ;?
 
+    ;; Combos
+    (    'combo_on                       "CMB_ON"                 ) ;Turn on Combo feature
+    (    'combo_off                      "CMB_OFF"                ) ;Turn off Combo feature
+    (    'combo_tog                      "CMB_TOG"                ) ;Toggle Combo feature on and off
+    
     ;; RGB Ligthing
     (    'rgb_tog                        "RGB_TOG"                ) ;Toggle RGB lighting on or off
     ((or 'rgb_mode_forward  'rgb_mod   ) "RGB_MOD"                ) ;Cycle through modes, reverse direction when Shift is held
