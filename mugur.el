@@ -1030,24 +1030,60 @@ contains all the layers and keys."
                      (s-join ", " (cdr it)))
              qmk-layers)))))
 
-(defun mugur--write-file (file contents)
+(defun mugur--write-file (file-name contents)
   "Write CONTENTS to FILE in the correct qmk_firmware location.
 Use the `mugur-qmk-path' and `mugur-keymap-name' to figure out
 where to write the FILE.  Create all the paths and the FILE if
-they don't already exist."
-  (with-temp-file
-      (let ((fparents                     ;Create the FILE's parents path
-             (concat (file-name-as-directory mugur-qmk-path)
-                     (file-name-as-directory "keyboards")
-                     (file-name-as-directory mugur-keyboard-name)
-                     (file-name-as-directory "keymaps")
-                     (file-name-as-directory mugur-keymap-name))))
-        (unless (file-directory-p fparents)
-          ;; Only create the `mugur-keymap-name' if it doesn't already exist, the
-          ;; rest of the parents should exist in a valid qmk_firmare source code.
-          (make-directory fparents))
-        (concat fparents file))
-    (insert contents)))
+they don't already exist.
+
+The CONTENTS is written between the \"START-MUGUR-REGION\" and
+\"END-MUGUR-REGION\" (comment lines containing these exact
+entries) of the FILE-NAME, keeping anything outside of these
+regions intact.  The comment type used for marking the start and
+end of these mugur regions is determined based on the file type.
+If the file does not contain this region, insert the CONTENTS
+at the beginning of the FILE-NAME and create this region."
+  (let* ((file-extension (file-name-extension file-name))
+         (dir-name
+          (concat (file-name-as-directory mugur-qmk-path)
+                  (file-name-as-directory "keyboards")
+                  (file-name-as-directory mugur-keyboard-name)
+                  (file-name-as-directory "keymaps")
+                  (file-name-as-directory mugur-keymap-name)))
+         (abs-path (concat dir-name file-name)))
+    ;; Make sure `mugur-keymap-name' exists; the rest of the dirs should exist
+    ;; in a valid qmk_firmare folder structure.
+    (unless (file-directory-p dir-name)
+      (make-directory dir-name))
+
+    (with-temp-buffer
+      ;; Extract the regions before and after the mugur region.
+      (insert-file-contents abs-path)
+      (let* ((comment-type (pcase file-extension
+                             ((or "c" "h") "//")
+                             ("mk" "#")))
+             (mugur-start-point (progn (or (search-forward "START-MUGUR-REGION" nil t)
+                                           (beginning-of-buffer))
+                                       (beginning-of-line)
+                                       (point)))
+             (mugur-end-point   (progn (or (search-forward "END-MUGUR-REGION" nil t)
+                                           (beginning-of-buffer))
+                                       (point)))
+             (before-mugur-region
+              (buffer-substring-no-properties
+               (point-min) mugur-start-point))
+             (after-mugur-region
+              (buffer-substring-no-properties
+               mugur-end-point (point-max))))
+        ;; Insert CONTENTS, keeping the regions before and after the mugur region intact.
+        (with-temp-file
+            abs-path
+          (insert (format "%s %s START-MUGUR-REGION\n\n %s \n\n%s END-MUGUR-REGION %s"
+                          before-mugur-region
+                          comment-type
+                          contents
+                          comment-type
+                          after-mugur-region)))))))
 
 
 ;;;; ---------------------------------------------------------------------------
