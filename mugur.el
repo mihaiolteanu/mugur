@@ -673,14 +673,17 @@ otherwise return nil."
                it)))
 
 (defun mugur--qmk-dashed-modifier (mugur-dashed-modifier)
-  "Transform the list of MUGUR-DASHED-MODIFIER into a qmk-raw-modifier.
+  "Transform the MUGUR-DASHED-MODIFIER into a qmk-raw-modifier.
 Similar to `mugur--qmk-raw-modifiers', but the modifiers are
-given in a single overall symbol, separated by dashes, where the
-item after the last dash is a valid `mugur-keycode', for example
-'C-M-a.  If not all items in the MUGUR-DASHED-MODIFIER can be
-successfully transformed, return nil"
-  (aand (symbolp mugur-dashed-modifier)
-        (symbol-name mugur-dashed-modifier)
+given in a single overall symbol or string, separated by dashes,
+where the item after the last dash is a valid `mugur-keycode',
+for example 'C-M-a.  If not all items in the
+MUGUR-DASHED-MODIFIER can be successfully transformed, return
+nil."
+  (aand (or (and (symbolp mugur-dashed-modifier)
+                 (symbol-name mugur-dashed-modifier))
+            (and (stringp mugur-dashed-modifier)
+                 mugur-dashed-modifier))        
         (and (s-match "-" it)
              it)
         (s-split "-" it)
@@ -1090,14 +1093,15 @@ that mugur-key."
   ((C-u "this" a)  "SEND_STRING(SS_LCTL(SS_TAP(X_U)) \"this\" SS_TAP(X_A))")
   ("a flip-flop"   "SEND_STRING(\"a flip-flop\")")
   ;; Strings of valid keycodes should result in those keycodes.
-  (("C-x" "8" "RET") "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
-  (("C-x"  8   RET)  "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
+  (("C-x" "8" "RET") "SEND_STRING(SS_LCTL(SS_TAP(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
+  (("C-x"  8   RET)  "SEND_STRING(SS_LCTL(SS_TAP(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
+  ((C-x    8   RET)  "SEND_STRING(SS_LCTL(SS_TAP(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
 
   ((DANCE a b)     "DANCE(KC_A, KC_B)")
   
   ;;; Keybound emacs functions.
   ;; Multikeys keybindings (C-x 8 RET)
-  (insert-char     "SEND_STRING(SS_TAP(LCTL(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")  
+  (insert-char     "SEND_STRING(SS_LCTL(SS_TAP(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")  
   (query-replace   "LALT(KC_PERCENT)") ;Normal/simple keybindings (M-%)  
   (kill-region     "LSFT(KC_DELETE)")  ;Keybindings with angle brackets (<S-delete>)
   ((kill-region)   "LSFT(KC_DELETE)")  ;Same, but given as a list
