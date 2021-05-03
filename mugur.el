@@ -1066,11 +1066,11 @@ at the beginning of the FILE-NAME and create this region."
                              ((or "c" "h") "//")
                              ("mk" "#")))
              (mugur-start-point (progn (or (search-forward "START-MUGUR-REGION" nil t)
-                                           (beginning-of-buffer))
+                                           (goto-char (point-min)))
                                        (beginning-of-line)
                                        (point)))
              (mugur-end-point   (progn (or (search-forward "END-MUGUR-REGION" nil t)
-                                           (beginning-of-buffer))
+                                           (goto-char (point-min)))
                                        (point)))
              (before-mugur-region
               (buffer-substring-no-properties
