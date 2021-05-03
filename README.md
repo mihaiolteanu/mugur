@@ -300,9 +300,11 @@ the mnemonic and the cadr is any valid mugur-key.
 Any keyboard that uses the QMK firmware. Users have reported success using mugur
 for the following keyboards,
 
-| QMK Keyboard | Comments |
-|:-------------|:---------|
-| Ergodox (EZ) |          |
+| QMK Keyboard                                 | Comments |
+|:---------------------------------------------|:---------|
+| [Corne](https://github.com/foostan/crkbd)    | -        |
+| [Ergodox EZ](https://ergodox-ez.com/)        | -        |
+| [Moonlander](https://www.zsa.io/moonlander/) | -        |
 
 Send me an email if you've used mugur for other keyboards successfully. If
 you have problems with a particular keyboard, open an issue with the keyboard
