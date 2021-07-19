@@ -1061,7 +1061,8 @@ at the beginning of the FILE-NAME and create this region."
 
     (with-temp-buffer
       ;; Extract the regions before and after the mugur region.
-      (insert-file-contents abs-path)
+      (and (file-exists-p abs-path)
+           (insert-file-contents abs-path))
       (let* ((comment-type (pcase file-extension
                              ((or "c" "h") "//")
                              ("mk" "#")))
