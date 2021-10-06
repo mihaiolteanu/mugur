@@ -2,14 +2,13 @@
 
 [![MELPA](https://melpa.org/packages/mugur-badge.svg)](https://melpa.org/#/mugur)
 
-Mugur is a keyboard configurator that supports all
-[QMK](https://github.com/qmk/qmk_firmware) compatible keyboards.  `mugur-mugur`
-accepts a keymap (a list of all the keyboard layers and keys), and it generates
-the equivalent QMK C code (keymap.c, config.h and rules.mk).  Currently
-supported features include all the basic QMK keycodes, the mod-tap and modifiers
-functionalities, one-shot keys, layer toggle, macros, tap dance, leader key and
-combos.  Additionally, an Emacs keybound function can also be specified as a
-valid key.
+Mugur is a keyboard configurator for [QMK](https://github.com/qmk/qmk_firmware)
+compatible keyboards.  `mugur-mugur` takes a list of all the layers and keys and
+generates the equivalent QMK C code, ready to be flashed on the keyboard.
+
+Supported features: all the basic QMK keycodes, mod-tap, modifiers, one-shot
+keys, layer toggle, macros, tap dance, leader key and combos.  If an Emacs
+function has a keybinding, it can be specified as a key.
 
 # Table of Contents
 
