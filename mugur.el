@@ -242,16 +242,16 @@ equivalent."
     ;; Punctuation
     ((or 'RET               'ent       ) "KC_ENTER"               ) ;Return (Enter)
     ((or 'escape            'esc       ) "KC_ESCAPE"              ) ;Escape
-    ((or 'backspace         'bspace    ) "KC_BSPACE"              ) ;Delete (Backspace)
+    ((or 'backspace         'bspace    ) "KC_BSPC"                ) ;Delete (Backspace)
     ((or 'tab               'tab       ) "KC_TAB"                 ) ;Tab
     ((or 'space             'spc       ) "KC_SPACE"               ) ;Spacebar
     ((or 'minus             ?\-)         "KC_MINUS"               ) ;- and _
     ((or 'equal             ?\=)         "KC_EQUAL"               ) ;= and +
-    ((or 'lbracket          ?\[        ) "KC_LBRACKET"            ) ;[ and {
-    ((or 'rbracket          ?\]        ) "KC_RBRACKET"            ) ;] and }
-    ((or 'bslash            ?\\        ) "KC_BSLASH"              ) ;\ and |
+    ((or 'lbracket          ?\[        ) "KC_LBRC"                ) ;[ and {
+    ((or 'rbracket          ?\]        ) "KC_RBRC"                ) ;] and }
+    ((or 'bslash            ?\\        ) "KC_BSLS"                ) ;\ and |
     (    'nonus-hash                     "KC_NONUS_HASH"          ) ;Non-US # and ~
-    ((or 'scolon            ?\;        ) "KC_SCOLON"              ) ;; and :
+    ((or 'scolon            ?\;        ) "KC_SCLN"                ) ;; and :
     ((or 'quote             ?\'        ) "KC_QUOTE"               ) ;' and
     ((or 'grave             ?\`        ) "KC_GRAVE"               ) ;` and ~, JIS Zenkaku/Hankaku
     ((or 'comma             ?\,        ) "KC_COMMA"               ) ;, and <
@@ -259,21 +259,21 @@ equivalent."
     ((or 'slash             ?\/        ) "KC_SLASH"               ) ;/ and ?
 
     ;; Lock keys
-    ((or 'capslock          'caps      ) "KC_CAPSLOCK"            ) ;Caps Lock
+    ((or 'capslock          'caps      ) "KC_CAPS_LOCK"           ) ;Caps Lock
     ((or 'scrollock         'slck      ) "KC_SCROLLOCK"           ) ;Scroll Lock, Brightness Down (macOS)
-    ((or 'numlock           'nlck      ) "KC_NUMLOCK"             ) ;Keypad Num Lock and Clear
-    ((or 'locking_caps      'lcap      ) "KC_LOCKING_CAPS"        ) ;Locking Caps Lock
-    ((or 'locking_num       'lnum      ) "KC_LOCKING_NUM"         ) ;Locking Num Lock
-    ((or 'locking_scroll    'lscr      ) "KC_LOCKING_SCROLL"      ) ;Locking Scroll Lock
+    ((or 'numlock           'nlck      ) "KC_NUM_LOCK"            ) ;Keypad Num Lock and Clear
+    ((or 'locking_caps      'lcap      ) "KC_LOCKING_CAPS_LOCK"   ) ;Locking Caps Lock
+    ((or 'locking_num       'lnum      ) "KC_LOCKING_NUM_LOCK"    ) ;Locking Num Lock
+    ((or 'locking_scroll    'lscr      ) "KC_LOCKING_SCROLL_LOCK" ) ;Locking Scroll Lock
 
     ;; Modifiers
     ((or 'lctl              'C         ) "KC_LCTL"                ) ;Left Control
     ((or 'lalt              'M         ) "KC_LALT"                ) ;Left Alt
     ((or 'lshift            'S         ) "KC_LSFT"                ) ;Left Shift
     ((or 'lgui              'G         ) "KC_LGUI"                ) ;Left GUI (Windows/Command/Meta key)
-    ((or 'rctl              'rctrl     ) "KC_RCTRL"               ) ;Right Control
+    ((or 'rctl              'rctrl     ) "KC_CTL"                 ) ;Right Control
     ((or 'ralt              'ropt      ) "KC_RALT"                ) ;Right Alt (Option/AltGr)
-    ((or 'rshift            'rsft      ) "KC_RSHIFT"              ) ;Right Shift
+    ((or 'rshift            'rsft      ) "KC_RSFT"                ) ;Right Shift
     ((or 'rgui              'rcmd      ) "KC_RGUI"                ) ;Right GUI (Windows/Command/Meta key)
     ((or 'hyper             'H         ) "KC_HYPR"                ) ;Hyper
 
@@ -298,20 +298,20 @@ equivalent."
     (    'lang9                          "LANG9"                  ) ;Language 9
 
     ;; Commands
-    ((or 'pscreen           'pscr      ) "KC_PSCREEN"             ) ;Print Screen
+    ((or 'pscreen           'pscr      ) "KC_PRINT_SCREEN"        ) ;Print Screen
     ((or 'pause             'brk       ) "KC_PAUSE"               ) ;Pause, Brightness Up (macOS)
     ((or 'insert            'ins       ) "KC_INSERT"              ) ;Insert
     (    'home                           "KC_HOME"                ) ;Home
-    (    'pgup                           "KC_PGUP"                ) ;Page Up
+    (    'pgup                           "KC_PAGE_UP"             ) ;Page Up
     ((or 'delete            'del       ) "KC_DELETE"              ) ;Forward Delete
     (    'end                            "KC_END"                 ) ;End
-    ((or 'pgdown            'pgdn      ) "KC_PGDOWN"              ) ;Page Down
+    ((or 'pgdown            'pgdn      ) "KC_PGDN"                ) ;Page Down
     (    'right                          "KC_RIGHT"               ) ;Right Arrow
     (    'left                           "KC_LEFT"                ) ;Left Arrow
     (    'down                           "KC_DOWN"                ) ;Down Arrow
     (    'up                             "KC_UP"                  ) ;Up Arrow
     ((or 'application       'app       ) "KC_APPLICATION"         ) ;Application (Windows Context Menu Key)
-    (    'power                          "KC_POWER"               ) ;System Power
+    (    'power                          "KC_KB_POWER"            ) ;System Power
     ((or 'execute           'exec      ) "KC_EXECUTE"             ) ;Execute
     (    'help                           "KC_HELP"                ) ;Help
     (    'menu                           "KC_MENU"                ) ;Menu
@@ -323,11 +323,11 @@ equivalent."
     (    'copy                           "KC_COPY"                ) ;Copy
     ((or 'paste             'pste      ) "KC_PASTE"               ) ;Paste
     (    'find                           "KC_FIND"                ) ;Find
-    (    '_mute                          "KC__MUTE"               ) ;Mute
-    (    '_volup                         "KC__VOLUP"              ) ;Volume Up
-    (    '_voldown                       "KC__VOLDOWN"            ) ;Volume Down
+    (    '_mute                          "KC_KB_MUTE"             ) ;Mute
+    (    '_volup                         "KC_KB_VOLUME_UP"        ) ;Volume Up
+    (    '_voldown                       "KC_KB_VOLUME_DOWN"      ) ;Volume Down
     ((or 'alt_erase         'eras      ) "KC_ALT_erase"           ) ;Aternate Erase
-    (    'sysreq                         "KC_SYSREQ"              ) ;SysReq/Attention
+    (    'sysreq                         "KC_SYSTEM_REQUEST"      ) ;SysReq/Attention
     (    'cancel                         "KC_CANCEL"              ) ;Cancel
     ((or 'clear             'clr       ) "KC_CLEAR"               ) ;Clear
     (    'prior                          "KC_PRIOR"               ) ;Prior
@@ -389,8 +389,8 @@ equivalent."
     (    'kp_equal_as400                 "KC_KP_EQUAL_AS400"      ) ;Keypad = on AS/400 keyboards
 
     ;; Special Keys
-    ((pred (eq mugur-ignore-key       )) "KC_NO"                 ) ;Ignore this key (NOOP)
-    ((pred (eq mugur-transparent-key  )) "KC_TRNS"               ) ;Use the next lowest non-transparent key
+    ((pred (eq mugur-ignore-key       )) "KC_NO"                  ) ;Ignore this key (NOOP)
+    ((pred (eq mugur-transparent-key  )) "KC_TRNS"                ) ;Use the next lowest non-transparent key
     
     ;; Quantum Keycodes
     (    'reset                          "RESET"                  ) ;Put the keyboard into bootloader mode for flashing
