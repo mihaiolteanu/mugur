@@ -170,7 +170,7 @@ no transformation is possible, return nil."
       ;; Strings of type "C-x" can be handled as modifiers instead of macros.
       (and (stringp mugur-key)
            (mugur--keycode (intern mugur-key)))
-      
+
       ;; Some mugur-keys, like the symbol >, do not have a qmk-keycode, but they
       ;; can be transformed into their character equivalent (that is, ?\>),
       ;; which does have a qmk-keycode.  Useful for combinations like M->.
@@ -391,12 +391,12 @@ equivalent."
     ;; Special Keys
     ((pred (eq mugur-ignore-key       )) "KC_NO"                  ) ;Ignore this key (NOOP)
     ((pred (eq mugur-transparent-key  )) "KC_TRNS"                ) ;Use the next lowest non-transparent key
-    
+
     ;; Quantum Keycodes
     (    'reset                          "RESET"                  ) ;Put the keyboard into bootloader mode for flashing
     (    'debug                          "DEBUG"                  ) ;Toggle debug mode
     ((or 'eeprom-reset      'eep_rst   ) "EEPROM_RESET"           ) ;Reinitializes the keyboard’s EEPROM (persistent memory)
-        
+
     ;; Dynamic Macros
     ((or 'dyn_rec_start1    'dm_rec1   ) "KC_DYN_REC_START1"      ) ;Start recording Macro 1
     ((or 'dyn_rec_start2    'dm_rec2   ) "KC_DYN_REC_START1"      ) ;Start recording Macro 2
@@ -430,7 +430,7 @@ equivalent."
     ((or 'ms_accel0         'acl0      ) "KC_MS_ACCEL0"           ) ;Set speed to 0
     ((or 'ms_accel1         'acl1      ) "KC_MS_ACCEL1"           ) ;Set speed to 1
     ((or 'ms_accel2         'acl2      ) "KC_MS_ACCEL2"           ) ;Set speed to 2
-        
+
     ;; Space Cadet
     (    'lspo                           "KC_LSPO"                ) ;Left Shift when held, ( when tapped
     (    'rspc                           "KC_RSPC"                ) ;Right Shift when held, ) when tapped
@@ -467,7 +467,7 @@ equivalent."
     (    'combo_on                       "CMB_ON"                 ) ;Turn on Combo feature
     (    'combo_off                      "CMB_OFF"                ) ;Turn off Combo feature
     (    'combo_tog                      "CMB_TOG"                ) ;Toggle Combo feature on and off
-    
+
     ;; RGB Ligthing
     (    'rgb_tog                        "RGB_TOG"                ) ;Toggle RGB lighting on or off
     ((or 'rgb_mode_forward  'rgb_mod   ) "RGB_MOD"                ) ;Cycle through modes, reverse direction when Shift is held
@@ -548,7 +548,7 @@ becomes \"SEND_STRING(SS_LCTL(SS_TAP(X_U)) SS_TAP(X_A))\""
          ;;equivalent,
          (mapcar (lambda (k)
               ;; that is,
-              (or               
+              (or
                ;; - A mugur-dashed-modifier
                ;; For example, C-M-a becomes SS_LCTL(SS_LALT(SS_TAP(X_A)))
                (aand (mugur--qmk-dashed-modifier k)
@@ -572,7 +572,7 @@ becomes \"SEND_STRING(SS_LCTL(SS_TAP(X_U)) SS_TAP(X_A))\""
                           it)
                      (format "SS_TAP(%s)"
                              (s-replace "KC_" "X_" it)))
-               
+
                ;; - Or a simple string which is wrapped in quotes and sent as
                ;; such (the "my enter" from above, for example).
                (and (stringp k)
@@ -583,7 +583,7 @@ becomes \"SEND_STRING(SS_LCTL(SS_TAP(X_U)) SS_TAP(X_A))\""
          (and (not (member nil it))
               (format "SEND_STRING(%s)"
                       (mapconcat #'identity it " "))))
-   
+
    ;;...or a simple string
    (and (stringp mugur-key)
         (format "SEND_STRING(\"%s\")" mugur-key))))
@@ -612,7 +612,7 @@ into a qmk-keycode, otherwise return nil."
           (car it)
           ;; Remove the angle brackets and treat the resulting string like a
           ;; mugur-key.
-          (s-replace-regexp "^<" "" it)           
+          (s-replace-regexp "^<" "" it)
           (s-replace-regexp ">$" "" it)
           (mugur--keycode it))
     ;; Other keybindings have more than one key, "C-x * RET" for example.
@@ -683,7 +683,7 @@ nil."
   (aand (or (and (symbolp mugur-dashed-modifier)
                  (symbol-name mugur-dashed-modifier))
             (and (stringp mugur-dashed-modifier)
-                 mugur-dashed-modifier))        
+                 mugur-dashed-modifier))
         (and (s-match "-" it)
              it)
         (s-split "-" it)
@@ -706,7 +706,7 @@ equivalent, otherwise return nil."
     ((pred numberp)    (number-to-string mugur-key))
     ((pred stringp)    mugur-key)
     ((pred symbolp)    (symbol-name mugur-key))
-    ((pred characterp) (char-to-string mugur-key))    
+    ((pred characterp) (char-to-string mugur-key))
     (`(,v) (mugur--to-string v))))
 
 
@@ -749,7 +749,7 @@ otherwise."
                          ;;No such qmk key
                          ((pred null)
                           (error (format "Invalid mugur key, %s" mugur-key)))
-                         
+
                          ;; If it's a macro, add the macro name together with
                          ;; its value to the list of macros. The resulting
                          ;; qmk-keycode for the mugur-macro is the newly created
@@ -770,7 +770,7 @@ otherwise."
                                   (push (list tapdance-name it)
                                         tapdances-list)
                                   (format "TD(%s)" tapdance-name))))
-                         
+
                          ;; Any other qmk-key we leave as it was returned from
                          ;; `mugur--keycode'.
                          ((pred stringp) qmk-keycode))))
@@ -816,13 +816,13 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
    (if (--first (cl-member 'lead it)
                 mugur-keymap)
        "yes" "no")
-   
+
    ;; Assume rgb_tog is always present if someone wants to use the rgblighting
    ;; functionality. If the mugur-key is present, enable the functionality.
    (if (--first (cl-member 'rgb_tog it)
                 mugur-keymap)
        "yes" "no")
-   
+
    ;; If at least one tap dance mugur-key is present, enable the functionality.
    (if (--first
         (cl-member 'DANCE it
@@ -832,7 +832,7 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
        "yes" "no")
 
    (if mugur-combo-keys "yes" "no"))
-  
+
   (mugur--write-config-h)
   (mugur--write-keymap-c
    (mugur--transform-keymap mugur-keymap)))
@@ -879,19 +879,19 @@ qmk-keymaps folder, as required by the qmk rules."
    (format
     "#include QMK_KEYBOARD_H
       #include \"version.h\"
-            
+
       /* Macros */
       %s
 
       /* Tap Dances */
       %s
-      
+
       /* Leader Keys */
       %s
 
       /* Combos */
       %s
-      
+
       /* Layer Codes and Matrix */
       %s"
     (mugur--keymap-c-macros    (mugur--qmk-keymap-macros qmk-keymap))
@@ -943,10 +943,10 @@ string."
        ;; Declare the tapdances keycodes
        (format "enum {%s}; \n\n"
                (s-join ", " (mapcar #'car qmk-tapdances)))
-       
+
        ;; Implement the tapdances.
        (format "qk_tap_dance_action_t tap_dance_actions[] = {%s\n};"
-               (s-join ", "                
+               (s-join ", "
                 (--map (format "\n[%s] = ACTION_TAP_DANCE_DOUBLE(%s, %s)"
                                (car it) (caadr it) (cadr (cadr it)))
                        qmk-tapdances))))
@@ -957,7 +957,7 @@ string."
   "Generate the C code equivalent for the `mugur-leader-keys'."
   (if mugur-leader-keys
       (format
-       "LEADER_EXTERNS(); 
+       "LEADER_EXTERNS();
 
         void matrix_scan_user(void) {
             LEADER_DICTIONARY() {
@@ -1018,11 +1018,11 @@ keymap.c file, of the layer_codes enum and keymaps matrix that
 contains all the layers and keys."
   (concat
    (format "enum layer_codes {%s}; \n\n"
-           (s-join ", "            
+           (s-join ", "
                    (--map (upcase (car it)) qmk-layers)))
 
    (format "const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {%s};"
-           (s-join ","                   
+           (s-join ","
             (--map
              ;; Layer name, layout name, layer keys
              (format "\n\n[%s] = %s(%s)"
@@ -1114,7 +1114,7 @@ that mugur-key."
   ("c"             "KC_C")
   ("C"             "KC_LCTL")
   (C               "KC_LCTL")           ;Ctrl Modifier
-  (M               "KC_LALT")           ;Meta Modifier 
+  (M               "KC_LALT")           ;Meta Modifier
   (G               "KC_LGUI")           ;Gui/Win/Super Modifier
   (S               "KC_LSFT")           ;Shift Modifier
   (5               "KC_5")
@@ -1135,14 +1135,14 @@ that mugur-key."
   ((C-x    8   RET)  "SEND_STRING(SS_LCTL(SS_TAP(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
 
   ((DANCE a b)     "DANCE(KC_A, KC_B)")
-  
+
   ;;; Keybound emacs functions.
   ;; Multikeys keybindings (C-x 8 RET)
-  (insert-char     "SEND_STRING(SS_LCTL(SS_TAP(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")  
-  (query-replace   "LALT(KC_PERCENT)") ;Normal/simple keybindings (M-%)  
+  (insert-char     "SEND_STRING(SS_LCTL(SS_TAP(X_X)) SS_TAP(X_8) SS_TAP(X_ENTER))")
+  (query-replace   "LALT(KC_PERCENT)") ;Normal/simple keybindings (M-%)
   (kill-region     "LSFT(KC_DELETE)")  ;Keybindings with angle brackets (<S-delete>)
   ((kill-region)   "LSFT(KC_DELETE)")  ;Same, but given as a list
-  
+
   ;;; Layers switching and toggle.
   ((OSL mylayer)   "OSL(mylayer)")
   ((OSM C)         "OSM(MOD_LCTL)")
@@ -1186,7 +1186,7 @@ that mugur-key."
                             ((1 2) ?\.))))
     (should
      (equal (mugur--keymap-c-combo-keys)
-"enum {KC_A__KC_B, KC_1__KC_2}; 
+"enum {KC_A__KC_B, KC_1__KC_2};
 
 const uint16_t PROGMEM kc_a__kc_b[] = {KC_A, KC_B, COMBO_END};
 const uint16_t PROGMEM kc_1__kc_2[] = {KC_1, KC_2, COMBO_END};
