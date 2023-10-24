@@ -664,7 +664,7 @@ mugur-modifiers, return a list of qmk-raw-modifiers, as strings,
 otherwise return nil."
   (aand (listp mugur-modifiers)
         (mapcar #'mugur--to-string mugur-modifiers)
-        (and (not (-difference it '("C" "M" "S" "G")))
+        (and (not (-difference it '("C" "M" "S" "G" "rctrl" "ropt" "rsft" "rcmd" "H")))
              it)
         (mapcar #'mugur--keycode it)
         (and (not (-some #'null it))
