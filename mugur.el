@@ -410,6 +410,9 @@ equivalent."
     ;; Leader Key
     (    'lead                           "KC_LEAD"                ) ;The Leader Key
 
+    ;; CAPS Word
+    (    'caps_word                      "CW_TOGG"                ) ;CAPS Lock for a single word
+
     ;; Mouse Keys
     ((or 'ms_up             'ms_u      ) "KC_MS_UP"               ) ;Move cursor up
     ((or 'ms_down           'ms_d      ) "KC_MS_DOWN"             ) ;Move cursor down
@@ -831,13 +834,18 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
         mugur-keymap)
        "yes" "no")
 
-   (if mugur-combo-keys "yes" "no"))
+   (if mugur-combo-keys "yes" "no")
+
+  ;; If caps_word is present, enable the functionality.
+   (if (--first (cl-member 'caps_word it)
+                mugur-keymap)
+       "yes" "no"))
 
   (mugur--write-config-h)
   (mugur--write-keymap-c
    (mugur--transform-keymap mugur-keymap)))
 
-(defun mugur--write-rules-mk (leader rgblight tapdance combo)
+(defun mugur--write-rules-mk (leader rgblight tapdance combo capsword)
   "Generate the qmk rules.mk file."
   (mugur--write-file "rules.mk"
    (format
@@ -845,8 +853,9 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
      LEADER_ENABLE    = %s
      RGBLIGHT_ENABLE  = %s
      TAP_DANCE_ENABLE = %s
-     COMBO_ENABLE     = %s"
-    leader rgblight tapdance combo)))
+     COMBO_ENABLE     = %s
+     CAPS_WORD_ENABLE = %s"
+    leader rgblight tapdance combo capsword)))
 
 (defun mugur--write-config-h ()
   "Generate the qmk config.h file.
