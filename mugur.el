@@ -210,6 +210,7 @@ specified as a string (i.e. 5 or \"5\" are both transformed to
 the qmk-keycode KC_5, as a string)."
   (aand (pcase mugur-key
           ((pred integerp) (number-to-string mugur-key))
+          ((pred symbolp) (symbol-name mugur-key))
           ((pred stringp ) mugur-key))
         (and (string-match "^[0-9]$" it)
              it)
