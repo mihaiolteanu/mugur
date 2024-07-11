@@ -77,6 +77,11 @@ your keyboard.  Some have just \"LAYOUT\", others
   :type '(string :tag "name")
   :group 'mugur)
 
+(defcustom mugur-indentation "  "
+  "A string representing one level of indentation in output files."
+  :type '(string :tag indentation)
+  :group 'mugur)
+
 ;; Rules
 
 ;; Configs
@@ -851,11 +856,11 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
   (mugur--write-file "rules.mk"
    (format
     "FORCE_NKRO       = yes
-     LEADER_ENABLE    = %s
-     RGBLIGHT_ENABLE  = %s
-     TAP_DANCE_ENABLE = %s
-     COMBO_ENABLE     = %s
-     CAPS_WORD_ENABLE = %s"
+LEADER_ENABLE    = %s
+RGBLIGHT_ENABLE  = %s
+TAP_DANCE_ENABLE = %s
+COMBO_ENABLE     = %s
+CAPS_WORD_ENABLE = %s"
     leader rgblight tapdance combo capsword)))
 
 (defun mugur--write-config-h ()
@@ -865,19 +870,19 @@ The output of the file is in the generated qmk-keymaps folder, as
 required by the qmk rules."
   (mugur--write-file "config.h"
    (format
-    "#undef TAPPING_TERM
-     #define TAPPING_TERM %s
-     #define COMBO_TERM %s
-     #define LEADER_TIMEOUT %s
-     %s      LEADER_PER_KEY_TIMING
-     #define COMBO_COUNT %s
-     #define FORCE_NKRO
-     #undef RGBLIGHT_ANIMATIONS"
+    "#undef  TAPPING_TERM
+#define TAPPING_TERM %s
+#define COMBO_TERM %s
+#define LEADER_TIMEOUT %s
+%s LEADER_PER_KEY_TIMING
+#define COMBO_COUNT %s
+#define FORCE_NKRO
+#undef  RGBLIGHT_ANIMATIONS"
     mugur-tapping-term
     mugur-combo-term
     mugur-leader-timeout
     (if mugur-leader-per-key-timing
-        "#define" "#undef")
+        "#define" " #undef ")
     (length mugur-combo-keys))))
 
 (defun mugur--write-keymap-c (qmk-keymap)
@@ -888,22 +893,22 @@ qmk-keymaps folder, as required by the qmk rules."
   (mugur--write-file "keymap.c"
    (format
     "#include QMK_KEYBOARD_H
-      #include \"version.h\"
+#include \"version.h\"
 
-      /* Macros */
-      %s
+/* Macros */
+%s
 
-      /* Tap Dances */
-      %s
+/* Tap Dances */
+%s
 
-      /* Leader Keys */
-      %s
+/* Leader Keys */
+%s
 
-      /* Combos */
-      %s
+/* Combos */
+%s
 
-      /* Layer Codes and Matrix */
-      %s"
+/* Layer Codes and Matrix */
+%s"
     (mugur--keymap-c-macros    (mugur--qmk-keymap-macros qmk-keymap))
     (mugur--keymap-c-tapdances (mugur--qmk-keymap-tapdances qmk-keymap))
     (mugur--keymap-c-leader-keys)
@@ -926,16 +931,17 @@ return the empty string."
                 (mapcar #'car qmk-macros)))
 
        ;; Implement the macros.
-       (format "bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-                  if (record->event.pressed) {
-                    switch (keycode) {%s}
-                  }
-                  return true;
-                };"
+       (format (mugur--fix-indent
+                "bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+\tif (record->event.pressed) {
+\t\tswitch (keycode) {%s}
+\t}
+\treturn true;
+};")
                (s-join ""
                 (--map
                  ;; case macro_name: SEND_STRING(...); return false;
-                 (format "\ncase %s: %s; return false;"
+                 (format (mugur--fix-indent "\n\t\t\tcase %s: %s; return false;")
                          (car it) (cadr it))
                  qmk-macros))))
     ""))
@@ -967,15 +973,16 @@ string."
   "Generate the C code equivalent for the `mugur-leader-keys'."
   (if mugur-leader-keys
       (format
+       (mugur--fix-indent
        "LEADER_EXTERNS();
 
-        void matrix_scan_user(void) {
-            LEADER_DICTIONARY() {
-                leading = false;
-                leader_end();
-                %s
-            }
-        }"
+void matrix_scan_user(void) {
+\tLEADER_DICTIONARY() {
+\t\tleading = false;
+\t\tleader_end();
+\t\t%s
+/t}
+}")
        (s-join ""
         (--map
          (format "\nSEQ_%s(%s){%s;}"
@@ -1035,7 +1042,7 @@ contains all the layers and keys."
            (s-join ","
             (--map
              ;; Layer name, layout name, layer keys
-             (format "\n\n[%s] = %s(%s)"
+             (format (mugur--fix-indent "\n\n\t[%s] = %s(%s)")
                      (upcase (car it))
                      (or mugur-layout-name
                          (error "The mugur-layout-name variable is not set"))
@@ -1092,7 +1099,7 @@ at the beginning of the FILE-NAME and create this region."
         ;; Insert CONTENTS, keeping the regions before and after the mugur region intact.
         (with-temp-file
             abs-path
-          (insert (format "%s %s START-MUGUR-REGION\n\n %s \n\n%s END-MUGUR-REGION %s"
+          (insert (format "%s%s START-MUGUR-REGION\n\n%s\n\n%s END-MUGUR-REGION %s"
                           before-mugur-region
                           comment-type
                           contents
