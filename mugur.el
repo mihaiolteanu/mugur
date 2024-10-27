@@ -87,6 +87,12 @@ your keyboard.  Some have just \"LAYOUT\", others
   :type '(integer :tag "ms")
   :group 'mugur)
 
+(defcustom mugur-tapping-toggle nil
+  "Tapping toggle.
+ This is the number of times you need to tap to toggle a layer with Tap-Toggle."
+  :type '(integer)
+  :group 'mugur)
+
 (defcustom mugur-combo-term 300
   "Combo term, in ms.
  This is the maximum time allowed between two keypresses in which
@@ -867,6 +873,7 @@ required by the qmk rules."
    (format
     "#undef TAPPING_TERM
      #define TAPPING_TERM %s
+     %s
      #define COMBO_TERM %s
      #define LEADER_TIMEOUT %s
      %s      LEADER_PER_KEY_TIMING
@@ -874,6 +881,9 @@ required by the qmk rules."
      #define FORCE_NKRO
      #undef RGBLIGHT_ANIMATIONS"
     mugur-tapping-term
+    (if mugur-tapping-toggle
+        (format "#define TAPPING_TOGGLE %d" mugur-tapping-toggle)
+      "")
     mugur-combo-term
     mugur-leader-timeout
     (if mugur-leader-per-key-timing
