@@ -114,6 +114,11 @@ tapped."
   :type '(integer :tag "ms")
   :group 'mugur)
 
+(defcustom mugur-raw-config nil
+  "Raw config to insert in config.h"
+  :type '(string :tag "config")
+  :group 'mugur)
+
 ;; Others
 (defcustom mugur-leader-keys nil
   "List of Leader Keys and their expansion.
@@ -879,7 +884,9 @@ required by the qmk rules."
      %s      LEADER_PER_KEY_TIMING
      #define COMBO_COUNT %s
      #define FORCE_NKRO
-     #undef RGBLIGHT_ANIMATIONS"
+     #undef RGBLIGHT_ANIMATIONS
+
+     %s"
     mugur-tapping-term
     (if mugur-tapping-toggle
         (format "#define TAPPING_TOGGLE %d" mugur-tapping-toggle)
@@ -888,7 +895,10 @@ required by the qmk rules."
     mugur-leader-timeout
     (if mugur-leader-per-key-timing
         "#define" "#undef")
-    (length mugur-combo-keys))))
+    (length mugur-combo-keys)
+    (if mugur-raw-config
+        mugur-raw-config
+      ""))))
 
 (defun mugur--write-keymap-c (qmk-keymap)
   "Generate the qmk keymap.c file from the MUGUR-KEYMAP.
