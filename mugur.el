@@ -87,6 +87,12 @@ your keyboard.  Some have just \"LAYOUT\", others
   :type '(integer :tag "ms")
   :group 'mugur)
 
+(defcustom mugur-tapping-toggle nil
+  "Tapping toggle.
+ This is the number of times you need to tap to toggle a layer with Tap-Toggle."
+  :type '(integer)
+  :group 'mugur)
+
 (defcustom mugur-combo-term 300
   "Combo term, in ms.
  This is the maximum time allowed between two keypresses in which
@@ -106,6 +112,11 @@ after you press the Leader Key key."
 If enabled, the Leader Key timeout is reset after each key is
 tapped."
   :type '(integer :tag "ms")
+  :group 'mugur)
+
+(defcustom mugur-raw-config nil
+  "Raw config to insert in config.h"
+  :type '(string :tag "config")
   :group 'mugur)
 
 ;; Others
@@ -867,18 +878,27 @@ required by the qmk rules."
    (format
     "#undef TAPPING_TERM
      #define TAPPING_TERM %s
+     %s
      #define COMBO_TERM %s
      #define LEADER_TIMEOUT %s
      %s      LEADER_PER_KEY_TIMING
      #define COMBO_COUNT %s
      #define FORCE_NKRO
-     #undef RGBLIGHT_ANIMATIONS"
+     #undef RGBLIGHT_ANIMATIONS
+
+     %s"
     mugur-tapping-term
+    (if mugur-tapping-toggle
+        (format "#define TAPPING_TOGGLE %d" mugur-tapping-toggle)
+      "")
     mugur-combo-term
     mugur-leader-timeout
     (if mugur-leader-per-key-timing
         "#define" "#undef")
-    (length mugur-combo-keys))))
+    (length mugur-combo-keys)
+    (if mugur-raw-config
+        mugur-raw-config
+      ""))))
 
 (defun mugur--write-keymap-c (qmk-keymap)
   "Generate the qmk keymap.c file from the MUGUR-KEYMAP.
