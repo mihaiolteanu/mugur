@@ -405,7 +405,7 @@ equivalent."
     ((pred (eq mugur-transparent-key  )) "KC_TRNS"                ) ;Use the next lowest non-transparent key
 
     ;; Quantum Keycodes
-    (    'reset                          "RESET"                  ) ;Put the keyboard into bootloader mode for flashing
+    (    'reset                          "QK_BOOTLOADER"          ) ;Put the keyboard into bootloader mode for flashing
     (    'debug                          "DEBUG"                  ) ;Toggle debug mode
     ((or 'eeprom-reset      'eep_rst   ) "EEPROM_RESET"           ) ;Reinitializes the keyboard’s EEPROM (persistent memory)
 
@@ -504,7 +504,8 @@ equivalent."
     ((or 'rgb_mode_rgbtest  'rgb_m_t   ) "RGB_MODE_RGBTEST"       ) ;Red, Green, Blue test animation mode
 
     ;; Key Lock
-    (    'lock                           "KC_LOCK"              ))) ;Hold down the next key pressed, until the key is pressed again
+    (    'lock                           "KC_LOCK"              )   ;Hold down the next key pressed, until the key is pressed again
+    )) 
 
 (defun mugur--modifier (mugur-key)
   "Handle a modifier MUGUR-KEY.
