@@ -975,7 +975,7 @@ string."
                (s-join ", " (mapcar #'car qmk-tapdances)))
 
        ;; Implement the tapdances.
-       (format "qk_tap_dance_action_t tap_dance_actions[] = {%s\n};"
+       (format "tap_dance_action_t tap_dance_actions[] = {%s\n};"
                (s-join ", "
                 (--map (format "\n[%s] = ACTION_TAP_DANCE_DOUBLE(%s, %s)"
                                (car it) (caadr it) (cadr (cadr it)))
