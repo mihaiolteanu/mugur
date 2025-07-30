@@ -852,13 +852,18 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
   ;; If caps_word is present, enable the functionality.
    (if (--first (cl-member 'caps_word it)
                 mugur-keymap)
+       "yes" "no")
+
+   ;; Enable/disable mouse functionality
+   (if (--first (cl-member 'ms_up it)
+                mugur-keymap)
        "yes" "no"))
 
   (mugur--write-config-h)
   (mugur--write-keymap-c
    (mugur--transform-keymap mugur-keymap)))
 
-(defun mugur--write-rules-mk (leader rgblight tapdance combo capsword)
+(defun mugur--write-rules-mk (leader rgblight tapdance combo capsword mousekeys)
   "Generate the qmk rules.mk file."
   (mugur--write-file "rules.mk"
    (format
@@ -867,8 +872,9 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
      RGBLIGHT_ENABLE  = %s
      TAP_DANCE_ENABLE = %s
      COMBO_ENABLE     = %s
-     CAPS_WORD_ENABLE = %s"
-    leader rgblight tapdance combo capsword)))
+     CAPS_WORD_ENABLE = %s
+     MOUSEKEY_ENABLE  = %s"    
+    leader rgblight tapdance combo capsword mousekeys)))
 
 (defun mugur--write-config-h ()
   "Generate the qmk config.h file.
