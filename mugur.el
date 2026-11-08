@@ -426,34 +426,34 @@ equivalent."
     (    'caps_word                      "CW_TOGG"                ) ;CAPS Lock for a single word
 
     ;; Mouse Keys
-    ((or 'ms_up             'ms_u      ) "KC_MS_UP"               ) ;Move cursor up
-    ((or 'ms_down           'ms_d      ) "KC_MS_DOWN"             ) ;Move cursor down
-    ((or 'ms_left           'ms_l      ) "KC_MS_LEFT"             ) ;Move cursor left
-    ((or 'ms_right          'ms_r      ) "KC_MS_RIGHT"            ) ;Move cursor right
-    ((or 'ms_btn1           'btn1      ) "KC_MS_BTN1"             ) ;Press button 1
-    ((or 'ms_btn2           'btn2      ) "KC_MS_BTN2"             ) ;Press button 2
-    ((or 'ms_btn3           'btn3      ) "KC_MS_BTN3"             ) ;Press button 3
-    ((or 'ms_btn4           'btn4      ) "KC_MS_BTN4"             ) ;Press button 4
-    ((or 'ms_btn5           'btn5      ) "KC_MS_BTN5"             ) ;Press button 5
-    ((or 'ms_btn6           'btn6      ) "KC_MS_BTN6"             ) ;Press button 6
-    ((or 'ms_btn7           'btn7      ) "KC_MS_BTN7"             ) ;Press button 7
-    ((or 'ms_btn8           'btn8      ) "KC_MS_BTN8"             ) ;Press button 8
-    ((or 'ms_wh_up          'wh_u      ) "KC_MS_WH_UP"            ) ;Move wheel up
-    ((or 'ms_wh_down        'wh_d      ) "KC_MS_WH_DOWN"          ) ;Move wheel down
-    ((or 'ms_wh_left        'wh_l      ) "KC_MS_WH_LEFT"          ) ;Move wheel left
-    ((or 'ms_wh_right       'wh_r      ) "KC_MS_WH_RIGHT"         ) ;Move wheel right
-    ((or 'ms_accel0         'acl0      ) "KC_MS_ACCEL0"           ) ;Set speed to 0
-    ((or 'ms_accel1         'acl1      ) "KC_MS_ACCEL1"           ) ;Set speed to 1
-    ((or 'ms_accel2         'acl2      ) "KC_MS_ACCEL2"           ) ;Set speed to 2
+    ((or 'ms_up             'ms_u      ) "MS_UP"               ) ;Move cursor up
+    ((or 'ms_down           'ms_d      ) "MS_DOWN"             ) ;Move cursor down
+    ((or 'ms_left           'ms_l      ) "MS_LEFT"             ) ;Move cursor left
+    ((or 'ms_right          'ms_r      ) "MS_RIGHT"            ) ;Move cursor right
+    ((or 'ms_btn1           'btn1      ) "MS_BTN1"             ) ;Press button 1
+    ((or 'ms_btn2           'btn2      ) "MS_BTN2"             ) ;Press button 2
+    ((or 'ms_btn3           'btn3      ) "MS_BTN3"             ) ;Press button 3
+    ((or 'ms_btn4           'btn4      ) "MS_BTN4"             ) ;Press button 4
+    ((or 'ms_btn5           'btn5      ) "MS_BTN5"             ) ;Press button 5
+    ((or 'ms_btn6           'btn6      ) "MS_BTN6"             ) ;Press button 6
+    ((or 'ms_btn7           'btn7      ) "MS_BTN7"             ) ;Press button 7
+    ((or 'ms_btn8           'btn8      ) "MS_BTN8"             ) ;Press button 8
+    ((or 'ms_wh_up          'wh_u      ) "MS_WH_UP"            ) ;Move wheel up
+    ((or 'ms_wh_down        'wh_d      ) "MS_WH_DOWN"          ) ;Move wheel down
+    ((or 'ms_wh_left        'wh_l      ) "MS_WH_LEFT"          ) ;Move wheel left
+    ((or 'ms_wh_right       'wh_r      ) "MS_WH_RIGHT"         ) ;Move wheel right
+    ((or 'ms_accel0         'acl0      ) "MS_ACCEL0"           ) ;Set speed to 0
+    ((or 'ms_accel1         'acl1      ) "MS_ACCEL1"           ) ;Set speed to 1
+    ((or 'ms_accel2         'acl2      ) "MS_ACCEL2"           ) ;Set speed to 2
 
-    ;; Space Cadet
-    (    'lspo                           "KC_LSPO"                ) ;Left Shift when held, ( when tapped
-    (    'rspc                           "KC_RSPC"                ) ;Right Shift when held, ) when tapped
-    (    'lcpo                           "KC_LCPO"                ) ;Left Control when held, ( when tapped
-    (    'rcpc                           "KC_RCPC"                ) ;Right Control when held, ) when tapped
-    (    'lapo                           "KC_LAPO"                ) ;Left Alt when held, ( when tapped
-    (    'rapc                           "KC_RAPC"                ) ;Right Alt when held, ) when tapped
-    (    'sftent                         "KC_SFTENT"              ) ;Right Shift when held, Enter when tapped
+    ;; Mouse Keys
+    ( 'lspo    "SC_LSPO"                ) ;Left Shift when held, ( when tapped
+    ( 'rspc    "SC_RSPC"                ) ;Right Shift when held, ) when tapped
+    ( 'lcpo    "SC_LCPO"                ) ;Left Control when held, ( when tapped
+    ( 'rcpc    "SC_RCPC"                ) ;Right Control when held, ) when tapped
+    ( 'lapo    "SC_LAPO"                ) ;Left Alt when held, ( when tapped
+    ( 'rapc    "SC_RAPC"                ) ;Right Alt when held, ) when tapped
+    ( 'sftent  "SC_SFTENT"              ) ;Right Shift when held, Enter when tapped
 
     ;; US ANSI Shifted Symbols
     ((or 'tilde              ?\~       ) "KC_TILDE"               ) ;~
@@ -505,7 +505,7 @@ equivalent."
 
     ;; Key Lock
     (    'lock                           "KC_LOCK"              )   ;Hold down the next key pressed, until the key is pressed again
-    )) 
+    ))
 
 (defun mugur--modifier (mugur-key)
   "Handle a modifier MUGUR-KEY.
@@ -873,7 +873,7 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
      TAP_DANCE_ENABLE = %s
      COMBO_ENABLE     = %s
      CAPS_WORD_ENABLE = %s
-     MOUSEKEY_ENABLE  = %s"    
+     MOUSEKEY_ENABLE  = %s"
     leader rgblight tapdance combo capsword mousekeys)))
 
 (defun mugur--write-config-h ()
