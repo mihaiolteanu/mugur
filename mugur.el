@@ -446,7 +446,7 @@ equivalent."
     ((or 'ms_accel1         'acl1      ) "MS_ACCEL1"           ) ;Set speed to 1
     ((or 'ms_accel2         'acl2      ) "MS_ACCEL2"           ) ;Set speed to 2
 
-    ;; Mouse Keys
+    ;; Space Cadet
     ( 'lspo    "SC_LSPO"                ) ;Left Shift when held, ( when tapped
     ( 'rspc    "SC_RSPC"                ) ;Right Shift when held, ) when tapped
     ( 'lcpo    "SC_LCPO"                ) ;Left Control when held, ( when tapped
