@@ -505,7 +505,7 @@ equivalent."
 
     ;; Key Lock
     (    'lock                           "KC_LOCK"              )   ;Hold down the next key pressed, until the key is pressed again
-    )) 
+    ))
 
 (defun mugur--modifier (mugur-key)
   "Handle a modifier MUGUR-KEY.
@@ -680,7 +680,7 @@ mugur-modifiers, return a list of qmk-raw-modifiers, as strings,
 otherwise return nil."
   (aand (listp mugur-modifiers)
         (mapcar #'mugur--to-string mugur-modifiers)
-        (and (not (-difference it '("C" "M" "S" "G")))
+        (and (not (-difference it '("C" "M" "S" "G" "rctrl" "ropt" "rsft" "rcmd" "H")))
              it)
         (mapcar #'mugur--keycode it)
         (and (not (-some #'null it))
@@ -873,7 +873,7 @@ MUGUR-KEYMAP is the user-side keymap with all the mugur-keys and layers."
      TAP_DANCE_ENABLE = %s
      COMBO_ENABLE     = %s
      CAPS_WORD_ENABLE = %s
-     MOUSEKEY_ENABLE  = %s"    
+     MOUSEKEY_ENABLE  = %s"
     leader rgblight tapdance combo capsword mousekeys)))
 
 (defun mugur--write-config-h ()
